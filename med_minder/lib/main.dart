@@ -7,7 +7,7 @@ void main() {
         appBar: AppBar(title: Text("Hell")),
         body: Center(
           child: Container(
-            width: 300,
+            width: 299,
             height: 413.7,
             child: Card(
               color: const Color.fromARGB(255, 188, 173, 57),
