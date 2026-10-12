@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-void main() {
+import 'notification.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   runApp(MaterialApp(home: MedMinder()));
 }
 
@@ -12,8 +19,10 @@ class MedMinder extends StatefulWidget {
 }
 
 class MedMinderState extends State<MedMinder> {
-  int currentDayIndex = 0;
-  final List<String> days = [
+  int currentScreenIndex = 9;
+  final List<String> screens = [
+    "home",
+    "edit",
     "Monday",
     "Tuesday",
     "Wednesday",
@@ -21,6 +30,7 @@ class MedMinderState extends State<MedMinder> {
     "Friday",
     "Saturday",
     "Sunday",
+    "test",
   ];
 
   int checkCounter = 0;
@@ -31,7 +41,7 @@ class MedMinderState extends State<MedMinder> {
 
   List<int> dayCheck = List.filled(7, 0);
 
-  String get currentDay => days[currentDayIndex];
+  String get currentDay => screens[currentScreenIndex];
 
   @override
   void initState() {
@@ -41,13 +51,13 @@ class MedMinderState extends State<MedMinder> {
 
   void nextDay() {
     setState(() {
-      currentDayIndex = currentDayIndex + 1;
+      currentScreenIndex = currentScreenIndex + 1;
     });
   }
 
   void previousDay() {
     setState(() {
-      currentDayIndex = currentDayIndex - 1;
+      currentScreenIndex = currentScreenIndex - 1;
     });
   }
 
@@ -70,7 +80,43 @@ class MedMinderState extends State<MedMinder> {
 
   @override
   Widget build(BuildContext context) {
-    if (currentDayIndex <= 6) {
+    if (currentScreenIndex == 0) {
+      return Scaffold(
+        backgroundColor: const Color.fromARGB(255, 142, 192, 218),
+        appBar: AppBar(
+          title: const Text("MedMinder"),
+          backgroundColor: const Color.fromARGB(255, 84, 115, 141),
+        ),
+      );
+    } else if (currentScreenIndex == 1) {
+      return Scaffold(
+        backgroundColor: const Color.fromARGB(255, 142, 192, 218),
+        appBar: AppBar(
+          title: const Text("MedMinder edit"),
+          backgroundColor: const Color.fromARGB(255, 84, 115, 141),
+        ),
+      );
+    } else if (currentScreenIndex == 9) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Scheduled Notifications Demo")),
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () {
+              final scheduledTime = DateTime.now().add(
+                const Duration(seconds: 10),
+              );
+              NotificationService.scheduleNotification(
+                id: 1,
+                title: "Congratulations!!!",
+                body: "You've successfully implemented scheduled notification",
+                scheduledTime: scheduledTime,
+              );
+            },
+            child: const Text("Schedule Notification in 10s"),
+          ),
+        ),
+      );
+    } else {
       return Scaffold(
         backgroundColor: const Color.fromARGB(255, 142, 192, 218),
         appBar: AppBar(
@@ -82,6 +128,28 @@ class MedMinderState extends State<MedMinder> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              SizedBox(height: 9),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        currentScreenIndex = 0;
+                      });
+                    },
+                    icon: Icon(Icons.home_filled),
+                  ),
+                  SizedBox(width: 150),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        currentScreenIndex = 1;
+                      });
+                    },
+                    icon: Icon(Icons.edit),
+                  ),
+                ],
+              ),
               // DAY CARD
               Center(
                 child: Container(
@@ -99,7 +167,7 @@ class MedMinderState extends State<MedMinder> {
                           crossAxisSpacing: 10.0,
                           mainAxisSpacing: 10.0,
                           padding: const EdgeInsets.all(10.0),
-                          children: List.generate(pillsPerDay[currentDayIndex], (
+                          children: List.generate(pillsPerDay[currentScreenIndex], (
                             index,
                           ) {
                             int pillNum = index + 1;
@@ -111,12 +179,13 @@ class MedMinderState extends State<MedMinder> {
                                   Center(child: Text("Pill $pillNum")),
                                   Center(
                                     child:
-                                        pillCheck[currentDayIndex][index] % 2 ==
+                                        pillCheck[currentScreenIndex][index] %
+                                                2 ==
                                             0
                                         ? ElevatedButton(
                                             onPressed: () {
                                               setState(() {
-                                                pillCheck[currentDayIndex][index]++;
+                                                pillCheck[currentScreenIndex][index]++;
                                               });
                                               print("pill $index completed");
                                             },
@@ -133,7 +202,7 @@ class MedMinderState extends State<MedMinder> {
                                         : IconButton(
                                             onPressed: () {
                                               setState(() {
-                                                pillCheck[currentDayIndex][index]++;
+                                                pillCheck[currentScreenIndex][index]++;
                                               });
                                               print("pill $index completed");
                                             },
@@ -159,12 +228,12 @@ class MedMinderState extends State<MedMinder> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Center(
-                                child: !allPillsTaken(currentDayIndex)
+                                child: !allPillsTaken(currentScreenIndex)
                                     ? ElevatedButton(
                                         onPressed: () {
                                           print("$currentDay not completed");
                                           setState(() {
-                                            dayCheck[currentDayIndex] += 0;
+                                            dayCheck[currentScreenIndex] += 0;
                                           });
                                         },
                                         style: ElevatedButton.styleFrom(
@@ -177,11 +246,11 @@ class MedMinderState extends State<MedMinder> {
                                           ),
                                         ),
                                       )
-                                    : dayCheck[currentDayIndex] == 0
+                                    : dayCheck[currentScreenIndex] == 0
                                     ? ElevatedButton(
                                         onPressed: () {
                                           setState(() {
-                                            dayCheck[currentDayIndex]++;
+                                            dayCheck[currentScreenIndex]++;
                                           });
                                           print("$currentDay completed");
                                         },
@@ -269,8 +338,6 @@ class MedMinderState extends State<MedMinder> {
           ),
         ),
       );
-    } else {
-      return Scaffold();
     }
   }
 }

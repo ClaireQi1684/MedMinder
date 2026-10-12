@@ -10,8 +10,12 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Keeps compatibility with your Java 17 environment
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        
+        // 1. Enables support for Java time libraries on older Android devices
+        isCoreLibraryDesugaringEnabled = true 
     }
 
     defaultConfig {
@@ -36,6 +40,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+// 2. Added at the same level as the android/plugins blocks
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 kotlin {
