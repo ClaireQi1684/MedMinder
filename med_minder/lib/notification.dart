@@ -17,9 +17,15 @@ class NotificationService {
     const AndroidInitializationSettings androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
+    const DarwinInitializationSettings iOSInit = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
     const InitializationSettings initSettings = InitializationSettings(
       android: androidInit,
-      iOS: null,
+      iOS: iOSInit,
     );
 
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
@@ -28,7 +34,12 @@ class NotificationService {
               AndroidFlutterLocalNotificationsPlugin
             >();
 
-    if (androidImplementation != null) {
+    final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _notifications
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
+
+    if ((androidImplementation != null) && (iOSImplementation != null)) {
       await _notifications.initialize(settings: initSettings);
     }
   }
