@@ -23,6 +23,10 @@ class MedMinderState extends State<MedMinder> {
     "Sunday",
   ];
 
+  int checkCounter = 0;
+
+  final List<int> checkCounters = List.filled(6, 0);
+
   String get currentDay => days[currentIndex];
 
   void nextDay() {
@@ -51,7 +55,7 @@ class MedMinderState extends State<MedMinder> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // DAY ONE CARD
+              // DAY CARD
               Center(
                 child: Container(
                   height: 680,
@@ -68,147 +72,49 @@ class MedMinderState extends State<MedMinder> {
                           crossAxisSpacing: 10.0,
                           mainAxisSpacing: 10.0,
                           padding: const EdgeInsets.all(10.0),
-                          children: <Widget>[
-                            Container(
+                          children: List.generate(6, (index) {
+                            int pillNum = index + 1;
+                            return Container(
                               padding: const EdgeInsets.all(7.0),
                               color: Colors.lime,
                               child: Column(
                                 children: [
-                                  Center(child: Text("Pill 1")),
+                                  Center(child: Text("Pill $pillNum")),
                                   Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
+                                    child: checkCounter % 2 == 0
+                                        ? ElevatedButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                checkCounter++;
+                                              });
+                                              print("pill one completed");
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              fixedSize: const Size(145, 145),
+                                            ),
+                                            child: Center(
+                                              child: Text("MARK AS TAKEN"),
+                                            ),
+                                          )
+                                        : IconButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                checkCounter++;
+                                              });
+                                              print("pill one completed");
+                                            },
+                                            icon: Icon(Icons.check),
+                                            iconSize: 130,
+                                            style: IconButton.styleFrom(
+                                              fixedSize: const Size(145, 145),
+                                            ),
+                                          ),
                                   ),
                                 ],
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(7.0),
-                              color: Colors.lime,
-                              child: Column(
-                                children: [
-                                  Center(child: Text("Pill 2")),
-                                  Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(7.0),
-                              color: Colors.lime,
-                              child: Column(
-                                children: [
-                                  Center(child: Text("Pill 3")),
-                                  Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(7.0),
-                              color: Colors.lime,
-                              child: Column(
-                                children: [
-                                  Center(child: Text("Pill 4")),
-                                  Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(7.0),
-                              color: Colors.lime,
-                              child: Column(
-                                children: [
-                                  Center(child: Text("Pill 5")),
-                                  Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(7.0),
-                              color: Colors.lime,
-                              child: Column(
-                                children: [
-                                  Center(child: Text("Pill 6")),
-                                  Center(
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        print("pill one completed");
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        fixedSize: const Size(145, 145),
-                                      ),
-                                      child: Center(
-                                        child: Text("MARK AS TAKEN"),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                            );
+                          }),
                         ),
-                        // Image.asset(
-                        //   "assets/Sunhyuk.png",
-                        //   fit: BoxFit.cover,
-                        //   height: 350,
-                        //   width: double.infinity,
-                        // ),
                         Container(
                           padding: EdgeInsets.only(
                             // top: 8.0,
