@@ -12,7 +12,7 @@ class MedMinder extends StatefulWidget {
 }
 
 class MedMinderState extends State<MedMinder> {
-  int currentIndex = 0;
+  int currentDayIndex = 0;
   final List<String> days = [
     "Monday",
     "Tuesday",
@@ -25,25 +25,52 @@ class MedMinderState extends State<MedMinder> {
 
   int checkCounter = 0;
 
-  final List<int> checkCounters = List.filled(6, 0);
+  List<int> pillsPerDay = List.filled(7, 0);
 
-  String get currentDay => days[currentIndex];
+  List<List<int>> pillCheck = List.generate(7, (dayIndex) => []);
+
+  List<int> dayCheck = List.filled(7, 0);
+
+  String get currentDay => days[currentDayIndex];
+
+  @override
+  void initState() {
+    super.initState();
+    addPills();
+  }
 
   void nextDay() {
     setState(() {
-      currentIndex = currentIndex + 1;
+      currentDayIndex = currentDayIndex + 1;
     });
   }
 
   void previousDay() {
     setState(() {
-      currentIndex = currentIndex - 1;
+      currentDayIndex = currentDayIndex - 1;
     });
+  }
+
+  //temp method before add pill function
+  void addPills() {
+    for (int i = 0; i < 7; i++) {
+      pillsPerDay[i] = i;
+      pillCheck[i] = List.filled(pillsPerDay[i], 0);
+    }
+  }
+
+  bool allPillsTaken(int dayIndex) {
+    for (int i = 0; i < pillsPerDay[dayIndex]; i++) {
+      if (pillCheck[dayIndex][i] % 2 == 0) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (currentIndex <= 6) {
+    if (currentDayIndex <= 6) {
       return Scaffold(
         backgroundColor: const Color.fromARGB(255, 142, 192, 218),
         appBar: AppBar(
@@ -72,7 +99,9 @@ class MedMinderState extends State<MedMinder> {
                           crossAxisSpacing: 10.0,
                           mainAxisSpacing: 10.0,
                           padding: const EdgeInsets.all(10.0),
-                          children: List.generate(6, (index) {
+                          children: List.generate(pillsPerDay[currentDayIndex], (
+                            index,
+                          ) {
                             int pillNum = index + 1;
                             return Container(
                               padding: const EdgeInsets.all(7.0),
@@ -81,27 +110,32 @@ class MedMinderState extends State<MedMinder> {
                                 children: [
                                   Center(child: Text("Pill $pillNum")),
                                   Center(
-                                    child: checkCounter % 2 == 0
+                                    child:
+                                        pillCheck[currentDayIndex][index] % 2 ==
+                                            0
                                         ? ElevatedButton(
                                             onPressed: () {
                                               setState(() {
-                                                checkCounter++;
+                                                pillCheck[currentDayIndex][index]++;
                                               });
-                                              print("pill one completed");
+                                              print("pill $index completed");
                                             },
                                             style: ElevatedButton.styleFrom(
                                               fixedSize: const Size(145, 145),
                                             ),
                                             child: Center(
-                                              child: Text("MARK AS TAKEN"),
+                                              child: Text(
+                                                "MARK AS TAKEN",
+                                                style: TextStyle(fontSize: 18),
+                                              ),
                                             ),
                                           )
                                         : IconButton(
                                             onPressed: () {
                                               setState(() {
-                                                checkCounter++;
+                                                pillCheck[currentDayIndex][index]++;
                                               });
-                                              print("pill one completed");
+                                              print("pill $index completed");
                                             },
                                             icon: Icon(Icons.check),
                                             iconSize: 130,
@@ -124,17 +158,53 @@ class MedMinderState extends State<MedMinder> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ElevatedButton(
-                                onPressed: () {
-                                  print("Monday marked as done");
-                                },
-                                child: const Text(
-                                  "MARK AS DONE",
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(200, 80),
-                                ),
+                              Center(
+                                child: !allPillsTaken(currentDayIndex)
+                                    ? ElevatedButton(
+                                        onPressed: () {
+                                          print("$currentDay not completed");
+                                          setState(() {
+                                            dayCheck[currentDayIndex] += 0;
+                                          });
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          fixedSize: const Size(400, 75),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            "PILLS NOT TAKEN",
+                                            style: TextStyle(fontSize: 20),
+                                          ),
+                                        ),
+                                      )
+                                    : dayCheck[currentDayIndex] == 0
+                                    ? ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            dayCheck[currentDayIndex]++;
+                                          });
+                                          print("$currentDay completed");
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          fixedSize: const Size(400, 75),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            "MARK AS DONE",
+                                            style: TextStyle(fontSize: 20),
+                                          ),
+                                        ),
+                                      )
+                                    : IconButton(
+                                        onPressed: () {
+                                          print("$currentDay completed");
+                                        },
+                                        icon: Icon(Icons.check),
+                                        iconSize: 65,
+                                        style: IconButton.styleFrom(
+                                          fixedSize: const Size(400, 75),
+                                        ),
+                                      ),
                               ),
                             ],
                           ),
