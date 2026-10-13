@@ -39,7 +39,7 @@ class NotificationService {
           IOSFlutterLocalNotificationsPlugin
         >();
 
-    if ((androidImplementation != null) && (iOSImplementation != null)) {
+    if ((androidImplementation != null) || (iOSImplementation != null)) {
       await _notifications.initialize(settings: initSettings);
     }
   }

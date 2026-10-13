@@ -33,6 +33,8 @@ dependencies:
   timezone: any
   flutter_local_notifications: any
   flutter_timezone: ^5.1.1
+  intl: ^0.20.3
+  shared_preferences: any
 
 dev_dependencies:
   flutter_test:
