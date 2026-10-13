@@ -94,6 +94,7 @@ class MedMinderState extends State<MedMinder> {
   }
 
   // Rolls the oldest day to the end and resets its checks.
+  // Rolls the oldest day to the end and resets its checks.
   void rollOverToNewDay() {
     setState(() {
       // Remove the oldest day's data.
@@ -108,6 +109,13 @@ class MedMinderState extends State<MedMinder> {
       pillCheck.add(List<int>.filled(oldPillCount, 0));
       dayCheck.add(0);
       screens.add(oldDay);
+
+      // Keep the current view anchored correctly after the shift
+      if (currentScreenIndex >= 2) {
+        currentScreenIndex = (currentScreenIndex > 2)
+            ? currentScreenIndex - 1
+            : 2;
+      }
     });
 
     saveData();
@@ -449,10 +457,10 @@ class MedMinderState extends State<MedMinder> {
               ),
               Row(
                 children: [
-                  (currentDay == "Monday")
+                  (currentScreenIndex == 2)
                       ? SizedBox(width: 8)
                       : SizedBox(width: 0),
-                  (currentDay != "Monday")
+                  (currentScreenIndex > 2)
                       ? IconButton(
                           icon: Icon(Icons.arrow_left_rounded),
                           onPressed: () {
@@ -466,7 +474,7 @@ class MedMinderState extends State<MedMinder> {
                           color: const Color.fromARGB(255, 128, 140, 149),
                           size: 70.0,
                         ),
-                  (currentDay == "Monday")
+                  (currentScreenIndex == 2)
                       ? SizedBox(width: 8)
                       : SizedBox(width: 0),
                   Center(
@@ -478,10 +486,10 @@ class MedMinderState extends State<MedMinder> {
                       ),
                     ),
                   ),
-                  (currentDay == "Sunday")
+                  (currentScreenIndex == screens.length - 1)
                       ? SizedBox(width: 8)
                       : SizedBox(width: 0),
-                  (currentDay != "Sunday")
+                  (currentScreenIndex < screens.length - 1)
                       ? IconButton(
                           icon: Icon(Icons.arrow_right_rounded),
                           onPressed: () {
@@ -495,7 +503,7 @@ class MedMinderState extends State<MedMinder> {
                           color: const Color.fromARGB(255, 128, 140, 149),
                           size: 70.0,
                         ),
-                  (currentDay == "Sunday")
+                  (currentScreenIndex == screens.length - 1)
                       ? SizedBox(width: 8)
                       : SizedBox(width: 0),
                 ],
