@@ -83,7 +83,7 @@ class MedMinderState extends State<MedMinder> {
     debugPrint('Next rollover: $nextMidnight');
     debugPrint('Time remaining: $durationToWait');
 
-    midnightTimer = Timer(const Duration(seconds: 10), () {
+    midnightTimer = Timer(durationToWait, () {
       if (!mounted) return;
 
       debugPrint('MIDNIGHT TIMER FIRED');
