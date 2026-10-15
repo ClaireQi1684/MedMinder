@@ -48,8 +48,8 @@ class MedMinder extends StatefulWidget {
   State<MedMinder> createState() => MedMinderState();
 }
 
-class MedMinderState extends State<MedMinder> {
-  int currentScreenIndex = 2;
+class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
+  int currentScreenIndex = 0;
   final List<String> screens = [
     "home",
     "edit",
@@ -62,74 +62,99 @@ class MedMinderState extends State<MedMinder> {
     "Sunday",
   ];
 
-  Timer? midnightTimer;
+  // Timer? midnightTimer;
 
-  // Schedules rollover for the next local midnight.
-  void scheduleMidnightTask() {
-    midnightTimer?.cancel();
+  // // Schedules rollover for the next local midnight.
+  // void scheduleMidnightTask() {
+  //   midnightTimer?.cancel();
 
-    final now = tz.TZDateTime.now(tz.local);
+  //   final now = tz.TZDateTime.now(tz.local);
 
-    final nextMidnight = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day + 1,
-    );
+  //   final nextMidnight = tz.TZDateTime(
+  //     tz.local,
+  //     now.year,
+  //     now.month,
+  //     now.day + 1,
+  //   );
 
-    final durationToWait = nextMidnight.difference(now);
+  //   final durationToWait = nextMidnight.difference(now);
 
-    debugPrint('Current time: $now');
-    debugPrint('Next rollover: $nextMidnight');
-    debugPrint('Time remaining: $durationToWait');
+  //   debugPrint('Current time: $now');
+  //   debugPrint('Next rollover: $nextMidnight');
+  //   debugPrint('Time remaining: $durationToWait');
 
-    midnightTimer = Timer(durationToWait, () {
-      if (!mounted) return;
+  //   midnightTimer = Timer(durationToWait, () {
+  //     if (!mounted) return;
 
-      debugPrint('MIDNIGHT TIMER FIRED');
+  //     debugPrint('MIDNIGHT TIMER FIRED');
 
-      rollOverToNewDay();
-      scheduleMidnightTask();
-    });
-  }
+  //     rollOverToNewDay();
+  //     scheduleMidnightTask();
+  //   });
+  // }
 
   // Rolls the oldest day to the end and resets its checks.
   // Rolls the oldest day to the end and resets its checks.
+  // void rollOverToNewDay() {
+  //   setState(() {
+  //     // Remove the oldest day's data.
+  //     final int oldPillCount = pillsPerDay.removeAt(0);
+  //     pillCheck.removeAt(0);
+  //     dayCheck.removeAt(0);
+
+  //     // Remove the oldest weekday label.
+  //     final String oldDay = screens.removeAt(2);
+
+  //     pillsPerDay.add(oldPillCount);
+  //     pillCheck.add(List<int>.filled(oldPillCount, 0));
+  //     dayCheck.add(0);
+  //     screens.add(oldDay);
+
+  //     // Keep the current view anchored correctly after the shift
+  //     if (currentScreenIndex >= 2) {
+  //       currentScreenIndex = (currentScreenIndex > 2)
+  //           ? currentScreenIndex - 1
+  //           : 2;
+  //     }
+  //   });
+
+  //   saveData();
+  // }
+
   void rollOverToNewDay() {
     setState(() {
-      // Remove the oldest day's data.
-      final int oldPillCount = pillsPerDay.removeAt(0);
+      // Remove today's data; tomorrow becomes today.
+      pillsPerDay.removeAt(0);
       pillCheck.removeAt(0);
       dayCheck.removeAt(0);
 
-      // Remove the oldest weekday label.
-      final String oldDay = screens.removeAt(2);
+      // Add a new day at the end.
+      // Reuse the last day's medication count.
+      final int newPillCount = pillsPerDay.last;
 
-      pillsPerDay.add(oldPillCount);
-      pillCheck.add(List<int>.filled(oldPillCount, 0));
+      pillsPerDay.add(newPillCount);
+      pillCheck.add(List<int>.filled(newPillCount, 0));
       dayCheck.add(0);
-      screens.add(oldDay);
 
-      // Keep the current view anchored correctly after the shift
-      if (currentScreenIndex >= 2) {
-        currentScreenIndex = (currentScreenIndex > 2)
-            ? currentScreenIndex - 1
-            : 2;
+      // Keep the selected calendar date selected.
+      if (currentScreenIndex > 2) {
+        currentScreenIndex--;
       }
     });
-
-    saveData();
   }
 
   @override
   void dispose() {
-    midnightTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    // midnightTimer?.cancel();
     super.dispose();
   }
 
   List<Pill> pills = [];
 
   int checkCounter = 0;
+
+  int get selectedDayIndex => currentScreenIndex - 2;
 
   final now = tz.TZDateTime.now(tz.local);
   String get dayName => DateFormat("EEEE").format(now);
@@ -142,43 +167,87 @@ class MedMinderState extends State<MedMinder> {
     growable: true,
   );
 
+  var lastRecordedDate = tz.TZDateTime.now(tz.local);
+
   List<int> dayCheck = List.filled(7, 0, growable: true);
-
-  String get currentDay => screens[currentScreenIndex];
-
-  int get currentDayIndex => currentScreenIndex - 2;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     initializeApp();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      checkForRollOver();
+    }
+  }
+
+  Future<void> checkForRollOver() async {
+    final now = tz.TZDateTime.now(tz.local);
+
+    final todayDate = tz.TZDateTime(tz.local, now.year, now.month, now.day);
+    final lastDate = tz.TZDateTime(
+      tz.local,
+      lastRecordedDate.year,
+      lastRecordedDate.month,
+      lastRecordedDate.day,
+    );
+
+    int dayDifference = todayDate.difference(lastDate).inDays;
+
+    if (dayDifference != 0) {
+      for (int i = 0; i < dayDifference; i++) {
+        rollOverToNewDay();
+      }
+    }
+
+    lastRecordedDate = now;
+    saveData();
+  }
+
+  // String getDayName() {
+  //   return screens[selectedDayIndex + 2];
+  // }
 
   Future<void> initializeApp() async {
     await loadData();
 
     if (!mounted) return;
 
-    scheduleMidnightTask();
+    await checkForRollOver();
+    // scheduleMidnightTask();
   }
+
+  void setDay() {}
 
   Future<void> saveData() async {
     // Obtain shared preferences instance
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    // 1. Convert List<int> to List<String> for pillsPerDay
+    // Convert List<int> to List<String> for pillsPerDay
     List<String> stringPillsPerDay = pillsPerDay
         .map((e) => e.toString())
         .toList();
     await prefs.setStringList('pillsPerDay', stringPillsPerDay);
 
-    // 2. Convert List<int> to List<String> for dayCheck
+    // Convert List<int> to List<String> for dayCheck
     List<String> stringDayCheck = dayCheck.map((e) => e.toString()).toList();
     await prefs.setStringList('dayCheck', stringDayCheck);
 
-    // 3. Encode the nested List<List<int>> into a JSON string for pillCheck
+    // Encode the nested List<List<int>> into a JSON string for pillCheck
     String encodedPillCheck = jsonEncode(pillCheck);
     await prefs.setString('pillCheck', encodedPillCheck);
+
+    // Save current date string
+    await prefs.setString(
+      'lastRecordedDate',
+      lastRecordedDate.toIso8601String(),
+    );
   }
 
   Future<void> loadData() async {
@@ -212,30 +281,37 @@ class MedMinderState extends State<MedMinder> {
             )
             .toList(growable: true);
       }
+
+      final savedDateString = prefs.getString('lastRecordedDate');
+      if (savedDateString != null) {
+        lastRecordedDate = tz.TZDateTime.parse(tz.local, savedDateString);
+      } else {
+        lastRecordedDate = tz.TZDateTime.now(tz.local);
+      }
     });
   }
 
   void nextDay() {
-    setState(() {
-      currentScreenIndex = currentScreenIndex + 1;
-    });
+    if (currentScreenIndex < 8) {
+      setState(() {
+        currentScreenIndex++;
+      });
+    }
   }
 
   void previousDay() {
-    setState(() {
-      currentScreenIndex = currentScreenIndex - 1;
-    });
+    if (currentScreenIndex > 2) {
+      setState(() {
+        currentScreenIndex--;
+      });
+    }
   }
 
   //temp method before add pill function
   void addPill() {
     for (int i = 0; i < 7; i++) {
-      pillsPerDay[i] = i;
-      pillCheck[i] = List.filled(pillsPerDay[i], 0);
-      if (i == 0) {
-        pillsPerDay[i] = 1;
-        pillCheck[i] = List.filled(pillsPerDay[i], 0);
-      }
+      pillsPerDay[i] = 4;
+      pillCheck[i] = List.filled(4, 0);
     }
   }
 
@@ -248,6 +324,23 @@ class MedMinderState extends State<MedMinder> {
     return true;
   }
 
+  int getDayOfYear(DateTime date) {
+    return int.parse(DateFormat("D").format(date));
+  }
+
+  String getDayLabel(int index) {
+    final now = tz.TZDateTime.now(tz.local);
+
+    final today = DateTime(now.year, now.month, now.day);
+    final date = today.add(Duration(days: index));
+
+    // if (index == 0) {
+    //   return 'Today - ${DateFormat('EEEE, MMM d').format(date)}';
+    // }
+
+    return DateFormat('EEEE').format(date);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (currentScreenIndex == 0) {
@@ -256,6 +349,14 @@ class MedMinderState extends State<MedMinder> {
         appBar: AppBar(
           title: const Text("MedMinder"),
           backgroundColor: const Color.fromARGB(255, 84, 115, 141),
+        ),
+        body: IconButton(
+          onPressed: () {
+            setState(() {
+              currentScreenIndex = 2;
+            });
+          },
+          icon: Icon(Icons.calendar_today),
         ),
       );
     } else if (currentScreenIndex == 1) {
@@ -337,7 +438,7 @@ class MedMinderState extends State<MedMinder> {
                           crossAxisSpacing: 10.0,
                           mainAxisSpacing: 10.0,
                           padding: const EdgeInsets.all(10.0),
-                          children: List.generate(pillsPerDay[currentDayIndex], (
+                          children: List.generate(pillsPerDay[selectedDayIndex], (
                             index,
                           ) {
                             int pillNum = index + 1;
@@ -349,12 +450,13 @@ class MedMinderState extends State<MedMinder> {
                                   Center(child: Text("Pill $pillNum")),
                                   Center(
                                     child:
-                                        pillCheck[currentDayIndex][index] % 2 ==
+                                        pillCheck[selectedDayIndex][index] %
+                                                2 ==
                                             0
                                         ? ElevatedButton(
                                             onPressed: () {
                                               setState(() {
-                                                pillCheck[currentDayIndex][index]++;
+                                                pillCheck[selectedDayIndex][index]++;
                                               });
                                               saveData();
                                               print("pill $index completed");
@@ -372,7 +474,7 @@ class MedMinderState extends State<MedMinder> {
                                         : IconButton(
                                             onPressed: () {
                                               setState(() {
-                                                pillCheck[currentDayIndex][index]++;
+                                                pillCheck[selectedDayIndex][index]++;
                                               });
                                               saveData();
                                               print("pill $index completed");
@@ -399,12 +501,12 @@ class MedMinderState extends State<MedMinder> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Center(
-                                child: !allPillsTaken(currentDayIndex)
+                                child: !allPillsTaken(selectedDayIndex)
                                     ? ElevatedButton(
                                         onPressed: () {
-                                          print("$currentDay not completed");
+                                          // print("$currentDay not completed");
                                           setState(() {
-                                            dayCheck[currentDayIndex] += 0;
+                                            dayCheck[selectedDayIndex] += 0;
                                           });
                                         },
                                         style: ElevatedButton.styleFrom(
@@ -417,14 +519,14 @@ class MedMinderState extends State<MedMinder> {
                                           ),
                                         ),
                                       )
-                                    : dayCheck[currentDayIndex] == 0
+                                    : dayCheck[selectedDayIndex] == 0
                                     ? ElevatedButton(
                                         onPressed: () {
                                           setState(() {
-                                            dayCheck[currentDayIndex]++;
+                                            dayCheck[selectedDayIndex]++;
                                           });
                                           saveData();
-                                          print("$currentDay completed");
+                                          // print("$currentDay completed");
                                         },
                                         style: ElevatedButton.styleFrom(
                                           fixedSize: const Size(400, 75),
@@ -438,7 +540,7 @@ class MedMinderState extends State<MedMinder> {
                                       )
                                     : IconButton(
                                         onPressed: () {
-                                          print("$currentDay completed");
+                                          // print("$currentDay completed");
                                         },
                                         icon: Icon(Icons.check),
                                         iconSize: 65,
@@ -465,7 +567,6 @@ class MedMinderState extends State<MedMinder> {
                           icon: Icon(Icons.arrow_left_rounded),
                           onPressed: () {
                             previousDay();
-                            saveData();
                           },
                           iconSize: 70.0,
                         )
@@ -479,7 +580,7 @@ class MedMinderState extends State<MedMinder> {
                       : SizedBox(width: 0),
                   Center(
                     child: Text(
-                      currentDay,
+                      getDayLabel(currentScreenIndex - 2),
                       style: TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
@@ -494,7 +595,6 @@ class MedMinderState extends State<MedMinder> {
                           icon: Icon(Icons.arrow_right_rounded),
                           onPressed: () {
                             nextDay();
-                            saveData();
                           },
                           iconSize: 70.0,
                         )
