@@ -357,13 +357,24 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
           backgroundColor: const Color.fromARGB(255, 84, 115, 141),
         ),
         body: Center(
-          child: IconButton(
-            onPressed: () {
-              setState(() {
-                currentScreenIndex = 2;
-              });
-            },
-            icon: const Icon(Icons.calendar_today),
+          child: Column(
+            children: [
+              Center(
+                child: Text(
+                  "WELCOMED TO MEDMINDERRRRUYIUWHUHS",
+                  style: TextStyle(fontSize: 70),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    currentScreenIndex = 2;
+                  });
+                },
+                iconSize: 300,
+                icon: const Icon(Icons.calendar_today),
+              ),
+            ],
           ),
         ),
       );
