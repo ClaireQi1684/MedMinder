@@ -25,9 +25,9 @@ void main() async {
 
 class Pill {
   String pillName = "";
-  int numTimesTaken = 0;
+  List<int> numTimesTaken = [];
 
-  Pill(String name, int numTimes) {
+  Pill(String name, List<int> numTimes) {
     pillName = name;
     numTimesTaken = numTimes;
   }
@@ -36,8 +36,8 @@ class Pill {
     return pillName;
   }
 
-  int getTimesTaken() {
-    return numTimesTaken;
+  int getNumTimesTakenOnDay(int dayIndex) {
+    return numTimesTaken[dayIndex];
   }
 }
 
@@ -69,12 +69,18 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     setState(() {
       pillsPerDay.removeAt(0);
       pillCheck.removeAt(0);
+      pillTargets.removeAt(0);
+      pillNames.removeAt(0);
       dayCheck.removeAt(0);
 
       final int newPillCount = pillsPerDay.last;
+      final List<int> newPillTargets = List.from(pillTargets.last);
+      final List<String> newPillNames = List.from(pillNames.last);
 
       pillsPerDay.add(newPillCount);
       pillCheck.add(List<int>.filled(newPillCount, 0));
+      pillTargets.add(newPillTargets);
+      pillNames.add(newPillNames);
       dayCheck.add(0);
 
       if (currentScreenIndex > 2) {
@@ -105,6 +111,18 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   List<int> pillsPerDay = List.filled(7, 0, growable: true);
 
   List<List<int>> pillCheck = List.generate(
+    7,
+    (dayIndex) => [],
+    growable: true,
+  );
+
+  List<List<int>> pillTargets = List.generate(
+    7,
+    (dayIndex) => [],
+    growable: true,
+  );
+
+  List<List<String>> pillNames = List.generate(
     7,
     (dayIndex) => [],
     growable: true,
@@ -175,6 +193,12 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     String encodedPillCheck = jsonEncode(pillCheck);
     await prefs.setString('pillCheck', encodedPillCheck);
 
+    String encodedPillTargets = jsonEncode(pillTargets);
+    await prefs.setString('pillTargets', encodedPillTargets);
+
+    String encodedPillNames = jsonEncode(pillNames);
+    await prefs.setString('pillNames', encodedPillNames);
+
     await prefs.setString(
       'lastRecordedDate',
       lastRecordedDate.toIso8601String(),
@@ -210,6 +234,64 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
             .toList(growable: true);
       }
 
+      final savedPillTargetsJson = prefs.getString('pillTargets');
+      if (savedPillTargetsJson != null) {
+        List<dynamic> decoded = jsonDecode(savedPillTargetsJson);
+        pillTargets = decoded
+            .map(
+              (innerList) => (innerList as List)
+                  .map((e) => e as int)
+                  .toList(growable: true),
+            )
+            .toList(growable: true);
+      }
+
+      final savedPillNamesJson = prefs.getString('pillNames');
+      if (savedPillNamesJson != null) {
+        List<dynamic> decoded = jsonDecode(savedPillNamesJson);
+        pillNames = decoded
+            .map(
+              (innerList) => (innerList as List)
+                  .map((e) => e.toString())
+                  .toList(growable: true),
+            )
+            .toList(growable: true);
+      }
+
+      // SAFETY SYNC: Ensure lists match pillsPerDay to prevent out-of-bounds errors
+      while (pillsPerDay.length < 7) pillsPerDay.add(0);
+      while (pillCheck.length < 7) pillCheck.add([]);
+      while (pillTargets.length < 7) pillTargets.add([]);
+      while (pillNames.length < 7) pillNames.add([]);
+      while (dayCheck.length < 7) dayCheck.add(0);
+
+      for (int i = 0; i < 7; i++) {
+        if (pillCheck[i].length < pillsPerDay[i]) {
+          pillCheck[i].addAll(
+            List.filled(pillsPerDay[i] - pillCheck[i].length, 0),
+          );
+        } else if (pillCheck[i].length > pillsPerDay[i]) {
+          pillCheck[i] = pillCheck[i].sublist(0, pillsPerDay[i]);
+        }
+
+        if (pillTargets[i].length < pillsPerDay[i]) {
+          pillTargets[i].addAll(
+            List.filled(pillsPerDay[i] - pillTargets[i].length, 1),
+          );
+        } else if (pillTargets[i].length > pillsPerDay[i]) {
+          pillTargets[i] = pillTargets[i].sublist(0, pillsPerDay[i]);
+        }
+
+        if (pillNames[i].length < pillsPerDay[i]) {
+          int start = pillNames[i].length;
+          for (int k = start; k < pillsPerDay[i]; k++) {
+            pillNames[i].add("Pill ${k + 1}");
+          }
+        } else if (pillNames[i].length > pillsPerDay[i]) {
+          pillNames[i] = pillNames[i].sublist(0, pillsPerDay[i]);
+        }
+      }
+
       final savedDateString = prefs.getString('lastRecordedDate');
       if (savedDateString != null) {
         lastRecordedDate = tz.TZDateTime.parse(tz.local, savedDateString);
@@ -239,12 +321,19 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     for (int i = 0; i < 7; i++) {
       pillsPerDay[i] = 4;
       pillCheck[i] = List.filled(4, 0);
+      pillTargets[i] = List.filled(4, 1);
+      pillNames[i] = List.generate(4, (index) => "Pill ${index + 1}");
     }
   }
 
   bool allPillsTaken(int dayIndex) {
+    if (dayIndex < 0 || dayIndex >= pillsPerDay.length) return false;
     for (int i = 0; i < pillsPerDay[dayIndex]; i++) {
-      if (pillCheck[dayIndex][i] % 2 == 0) {
+      if (i >= pillCheck[dayIndex].length ||
+          i >= pillTargets[dayIndex].length) {
+        return false;
+      }
+      if (pillCheck[dayIndex][i] < pillTargets[dayIndex][i]) {
         return false;
       }
     }
@@ -284,7 +373,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       return Scaffold(
         backgroundColor: const Color.fromARGB(255, 142, 192, 218),
         appBar: AppBar(
-          title: Text(isEditing ? "MedMinder Edit" : "MedMinder"),
+          title: const Text("MedMinder"),
           backgroundColor: const Color.fromARGB(255, 84, 115, 141),
         ),
         body: FittedBox(
@@ -335,19 +424,18 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                   child: Card(
                     child: Column(
                       children: [
-                        GridView.count(
-                          primary: false,
-                          physics: const NeverScrollableScrollPhysics(),
-                          shrinkWrap: true,
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 10.0,
-                          mainAxisSpacing: 10.0,
-                          padding: const EdgeInsets.all(10.0),
-                          children: List.generate(
-                            isEditing
-                                ? pillsPerDay[selectedDayIndex] + 1
-                                : pillsPerDay[selectedDayIndex],
-                            (index) {
+                        Expanded(
+                          child: GridView.count(
+                            primary: false,
+                            physics: const ClampingScrollPhysics(),
+                            shrinkWrap: true,
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10.0,
+                            mainAxisSpacing: 10.0,
+                            padding: const EdgeInsets.all(10.0),
+                            children: List.generate(isEditing ? pillsPerDay[selectedDayIndex] + 1 : pillsPerDay[selectedDayIndex], (
+                              index,
+                            ) {
                               if (isEditing &&
                                   index == pillsPerDay[selectedDayIndex]) {
                                 // Gray addition button in edit mode
@@ -358,15 +446,119 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       IconButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            pillCheck[selectedDayIndex].add(0);
-                                            pillsPerDay[selectedDayIndex] =
-                                                pillCheck[selectedDayIndex]
-                                                    .length;
-                                          });
-                                          saveData();
-                                          print("Add pill button clicked");
+                                        onPressed: () async {
+                                          final TextEditingController
+                                          nameController = TextEditingController(
+                                            text:
+                                                "Pill ${pillCheck[selectedDayIndex].length + 1}",
+                                          );
+                                          final TextEditingController
+                                          targetController =
+                                              TextEditingController(text: "1");
+
+                                          final Map<String, dynamic>?
+                                          newPillData =
+                                              await showDialog<
+                                                Map<String, dynamic>
+                                              >(
+                                                context: context,
+                                                builder: (BuildContext context) {
+                                                  return AlertDialog(
+                                                    title: const Text(
+                                                      "Add Pill",
+                                                    ),
+                                                    content: Column(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        TextField(
+                                                          controller:
+                                                              nameController,
+                                                          decoration:
+                                                              const InputDecoration(
+                                                                labelText:
+                                                                    "Pill Name",
+                                                              ),
+                                                          autofocus: true,
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 8,
+                                                        ),
+                                                        TextField(
+                                                          controller:
+                                                              targetController,
+                                                          keyboardType:
+                                                              TextInputType
+                                                                  .number,
+                                                          decoration:
+                                                              const InputDecoration(
+                                                                labelText: "Required Clicks",
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.of(
+                                                              context,
+                                                            ).pop(),
+                                                        child: const Text(
+                                                          "Cancel",
+                                                        ),
+                                                      ),
+                                                      ElevatedButton(
+                                                        onPressed: () {
+                                                          final int? targetVal =
+                                                              int.tryParse(
+                                                                targetController
+                                                                    .text,
+                                                              );
+                                                          final String nameVal =
+                                                              nameController
+                                                                  .text
+                                                                  .trim();
+                                                          if (nameVal
+                                                                  .isNotEmpty &&
+                                                              targetVal !=
+                                                                  null &&
+                                                              targetVal > 0) {
+                                                            Navigator.of(
+                                                              context,
+                                                            ).pop({
+                                                              "name": nameVal,
+                                                              "target":
+                                                                  targetVal,
+                                                            });
+                                                          }
+                                                        },
+                                                        child: const Text(
+                                                          "Add",
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
+                                              );
+
+                                          if (newPillData != null) {
+                                            setState(() {
+                                              pillCheck[selectedDayIndex].add(
+                                                0,
+                                              );
+                                              pillTargets[selectedDayIndex].add(
+                                                newPillData["target"] as int,
+                                              );
+                                              pillNames[selectedDayIndex].add(
+                                                newPillData["name"] as String,
+                                              );
+                                              pillsPerDay[selectedDayIndex] =
+                                                  pillCheck[selectedDayIndex]
+                                                      .length;
+                                            });
+                                            saveData();
+                                            print("Add pill button clicked");
+                                          }
                                         },
                                         icon: const Icon(Icons.add),
                                         iconSize: 100,
@@ -379,49 +571,256 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                 );
                               }
 
-                              int pillNum = index + 1;
+                              String currentPillName =
+                                  pillNames[selectedDayIndex][index];
+                              int currentClicks =
+                                  pillCheck[selectedDayIndex][index];
+                              int targetClicks =
+                                  pillTargets[selectedDayIndex][index];
+                              bool isTaken = currentClicks >= targetClicks;
+
                               return Container(
-                                padding: const EdgeInsets.all(7.0),
+                                padding: const EdgeInsets.all(3.0),
                                 color: Colors.lime,
                                 child: Column(
                                   children: [
-                                    Center(child: Text("Pill $pillNum")),
+                                    Center(
+                                      child: Text(
+                                        currentPillName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                     Center(
                                       child: isEditing
-                                          ? ElevatedButton(
-                                              onPressed: () {
-                                                setState(() {
-                                                  if (index <
-                                                      pillCheck[selectedDayIndex]
-                                                          .length) {
-                                                    pillCheck[selectedDayIndex]
-                                                        .removeAt(index);
-                                                    pillsPerDay[selectedDayIndex] =
+                                          ? Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                // Top Button: Remove
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      if (index <
+                                                          pillCheck[selectedDayIndex]
+                                                              .length) {
                                                         pillCheck[selectedDayIndex]
-                                                            .length;
-                                                  }
-                                                });
-                                                saveData();
-                                                print("Pill $index removed");
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                fixedSize: const Size(145, 145),
-                                                backgroundColor:
-                                                    Colors.red.shade300,
-                                              ),
-                                              child: const Center(
-                                                child: Text(
-                                                  "REMOVE",
-                                                  style: TextStyle(
-                                                    fontSize: 18,
-                                                    color: Colors.white,
+                                                            .removeAt(index);
+                                                        pillTargets[selectedDayIndex]
+                                                            .removeAt(index);
+                                                        pillNames[selectedDayIndex]
+                                                            .removeAt(index);
+                                                        pillsPerDay[selectedDayIndex] =
+                                                            pillCheck[selectedDayIndex]
+                                                                .length;
+                                                      }
+                                                    });
+                                                    saveData();
+                                                    print(
+                                                      "Pill $index removed",
+                                                    );
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        fixedSize: const Size(
+                                                          145,
+                                                          35,
+                                                        ),
+                                                        backgroundColor:
+                                                            Colors.red.shade300,
+                                                      ),
+                                                  child: const Center(
+                                                    child: Text(
+                                                      "REMOVE",
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
+                                                const SizedBox(height: 3),
+                                                // Middle Button: Input target number
+                                                ElevatedButton(
+                                                  onPressed: () async {
+                                                    final TextEditingController
+                                                    targetController =
+                                                        TextEditingController(
+                                                          text: targetClicks
+                                                              .toString(),
+                                                        );
+                                                    final int?
+                                                    newTarget = await showDialog<int>(
+                                                      context: context,
+                                                      builder: (BuildContext context) {
+                                                        return AlertDialog(
+                                                          title: const Text(
+                                                            "Set Required Clicks",
+                                                          ),
+                                                          content: TextField(
+                                                            controller:
+                                                                targetController,
+                                                            keyboardType:
+                                                                TextInputType
+                                                                    .number,
+                                                            decoration:
+                                                                const InputDecoration(
+                                                                  labelText: "Required clicks",
+                                                                ),
+                                                            autofocus: true,
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).pop(),
+                                                              child: const Text(
+                                                                "Cancel",
+                                                              ),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () {
+                                                                final int?
+                                                                val = int.tryParse(
+                                                                  targetController
+                                                                      .text,
+                                                                );
+                                                                Navigator.of(
+                                                                  context,
+                                                                ).pop(val);
+                                                              },
+                                                              child: const Text(
+                                                                "Save",
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                    );
+
+                                                    if (newTarget != null &&
+                                                        newTarget > 0) {
+                                                      setState(() {
+                                                        pillTargets[selectedDayIndex][index] =
+                                                            newTarget;
+                                                        if (pillCheck[selectedDayIndex][index] >
+                                                            newTarget) {
+                                                          pillCheck[selectedDayIndex][index] =
+                                                              newTarget;
+                                                        }
+                                                      });
+                                                      saveData();
+                                                    }
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        fixedSize: const Size(
+                                                          145,
+                                                          35,
+                                                        ),
+                                                        backgroundColor: Colors
+                                                            .blue
+                                                            .shade300,
+                                                      ),
+                                                  child: Center(
+                                                    child: Text(
+                                                      "Target: $targetClicks",
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                // Bottom Button: Edit Pill Name
+                                                ElevatedButton(
+                                                  onPressed: () async {
+                                                    final TextEditingController
+                                                    nameController =
+                                                        TextEditingController(
+                                                          text: currentPillName,
+                                                        );
+                                                    final String?
+                                                    newName = await showDialog<String>(
+                                                      context: context,
+                                                      builder: (BuildContext context) {
+                                                        return AlertDialog(
+                                                          title: const Text(
+                                                            "Edit Pill Name",
+                                                          ),
+                                                          content: TextField(
+                                                            controller:
+                                                                nameController,
+                                                            decoration:
+                                                                const InputDecoration(
+                                                                  labelText: "Pill Name",
+                                                                ),
+                                                            autofocus: true,
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.of(
+                                                                    context,
+                                                                  ).pop(),
+                                                              child: const Text(
+                                                                "Cancel",
+                                                              ),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () {
+                                                                Navigator.of(
+                                                                  context,
+                                                                ).pop(
+                                                                  nameController
+                                                                      .text
+                                                                      .trim(),
+                                                                );
+                                                              },
+                                                              child: const Text(
+                                                                "Save",
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        );
+                                                      },
+                                                    );
+
+                                                    if (newName != null &&
+                                                        newName.isNotEmpty) {
+                                                      setState(() {
+                                                        pillNames[selectedDayIndex][index] =
+                                                            newName;
+                                                      });
+                                                      saveData();
+                                                    }
+                                                  },
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        fixedSize: const Size(
+                                                          145,
+                                                          35,
+                                                        ),
+                                                        backgroundColor: Colors
+                                                            .orangeAccent
+                                                            .shade200,
+                                                      ),
+                                                  child: const Center(
+                                                    child: Text(
+                                                      "Edit Name",
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             )
-                                          : pillCheck[selectedDayIndex][index] %
-                                                    2 ==
-                                                0
+                                          : !isTaken
                                           ? ElevatedButton(
                                               onPressed: () {
                                                 setState(() {
@@ -433,22 +832,24 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                               style: ElevatedButton.styleFrom(
                                                 fixedSize: const Size(145, 145),
                                               ),
-                                              child: const Center(
+                                              child: Center(
                                                 child: Text(
-                                                  "MARK AS TAKEN",
-                                                  style: TextStyle(
-                                                    fontSize: 18,
+                                                  "TAKE\n($currentClicks/$targetClicks)",
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
                                                   ),
+                                                  textAlign: TextAlign.center,
                                                 ),
                                               ),
                                             )
                                           : IconButton(
                                               onPressed: () {
                                                 setState(() {
-                                                  pillCheck[selectedDayIndex][index]++;
+                                                  pillCheck[selectedDayIndex][index] =
+                                                      0;
                                                 });
                                                 saveData();
-                                                print("pill $index completed");
+                                                print("pill $index reset");
                                               },
                                               icon: const Icon(Icons.check),
                                               iconSize: 130,
@@ -460,7 +861,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                   ],
                                 ),
                               );
-                            },
+                            }),
                           ),
                         ),
                         Container(
@@ -469,7 +870,9 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Center(
-                                child: !allPillsTaken(selectedDayIndex)
+                                child:
+                                    !allPillsTaken(selectedDayIndex) &&
+                                        !isEditing
                                     ? ElevatedButton(
                                         onPressed: () {
                                           setState(() {
@@ -486,7 +889,8 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                           ),
                                         ),
                                       )
-                                    : dayCheck[selectedDayIndex] == 0
+                                    : dayCheck[selectedDayIndex] == 0 &&
+                                          !isEditing
                                     ? ElevatedButton(
                                         onPressed: () {
                                           setState(() {
@@ -504,14 +908,16 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                           ),
                                         ),
                                       )
-                                    : IconButton(
+                                    : !isEditing
+                                    ? IconButton(
                                         onPressed: () {},
                                         icon: const Icon(Icons.check),
                                         iconSize: 65,
                                         style: ElevatedButton.styleFrom(
                                           fixedSize: const Size(400, 75),
                                         ),
-                                      ),
+                                      )
+                                    : null,
                               ),
                             ],
                           ),
