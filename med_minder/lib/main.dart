@@ -65,28 +65,48 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     "Sunday",
   ];
 
+  // History variable to persist past days' data
+  List<Map<String, dynamic>> pillHistory = [];
+
   void rollOverToNewDay() {
     setState(() {
+      // Archive expiring day's data to history before removal
+      if (pillsPerDay.isNotEmpty &&
+          pillNames.isNotEmpty &&
+          pillCheck.isNotEmpty) {
+        final expiredDayData = {
+          'date': lastRecordedDate.toIso8601String(),
+          'pillNames': List<String>.from(pillNames[0]),
+          'pillCheck': List<int>.from(pillCheck[0]),
+          'pillTargets': List<int>.from(pillTargets[0]),
+          'dayCompleted': dayCheck[0],
+        };
+        pillHistory.add(expiredDayData);
+      }
+
+      // Capture the latest pill configuration from Today (index 0)
+      // before it's removed, preserving any added or modified pills!
+      final List<String> latestPillNames = List<String>.from(pillNames[0]);
+      final List<int> latestPillTargets = List<int>.from(pillTargets[0]);
+      final int latestPillCount = latestPillNames.length;
+
       pillsPerDay.removeAt(0);
       pillCheck.removeAt(0);
       pillTargets.removeAt(0);
       pillNames.removeAt(0);
       dayCheck.removeAt(0);
 
-      final int newPillCount = pillsPerDay.last;
-      final List<int> newPillTargets = List.from(pillTargets.last);
-      final List<String> newPillNames = List.from(pillNames.last);
-
-      pillsPerDay.add(newPillCount);
-      pillCheck.add(List<int>.filled(newPillCount, 0));
-      pillTargets.add(newPillTargets);
-      pillNames.add(newPillNames);
+      pillsPerDay.add(latestPillCount);
+      pillCheck.add(List<int>.filled(latestPillCount, 0, growable: true));
+      pillTargets.add(latestPillTargets);
+      pillNames.add(latestPillNames);
       dayCheck.add(0);
 
       if (currentScreenIndex > 2) {
         currentScreenIndex--;
       }
     });
+    saveData();
   }
 
   @override
@@ -199,6 +219,9 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     String encodedPillNames = jsonEncode(pillNames);
     await prefs.setString('pillNames', encodedPillNames);
 
+    String encodedHistory = jsonEncode(pillHistory);
+    await prefs.setString('pillHistory', encodedHistory);
+
     await prefs.setString(
       'lastRecordedDate',
       lastRecordedDate.toIso8601String(),
@@ -258,6 +281,14 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
             .toList(growable: true);
       }
 
+      final savedHistoryJson = prefs.getString('pillHistory');
+      if (savedHistoryJson != null) {
+        List<dynamic> decodedHistory = jsonDecode(savedHistoryJson);
+        pillHistory = decodedHistory
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(growable: true);
+      }
+
       // SAFETY SYNC: Ensure lists match pillsPerDay to prevent out-of-bounds errors
       while (pillsPerDay.length < 7) pillsPerDay.add(0);
       while (pillCheck.length < 7) pillCheck.add([]);
@@ -268,7 +299,11 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       for (int i = 0; i < 7; i++) {
         if (pillCheck[i].length < pillsPerDay[i]) {
           pillCheck[i].addAll(
-            List.filled(pillsPerDay[i] - pillCheck[i].length, 0),
+            List.filled(
+              pillsPerDay[i] - pillCheck[i].length,
+              0,
+              growable: true,
+            ),
           );
         } else if (pillCheck[i].length > pillsPerDay[i]) {
           pillCheck[i] = pillCheck[i].sublist(0, pillsPerDay[i]);
@@ -276,7 +311,11 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
 
         if (pillTargets[i].length < pillsPerDay[i]) {
           pillTargets[i].addAll(
-            List.filled(pillsPerDay[i] - pillTargets[i].length, 1),
+            List.filled(
+              pillsPerDay[i] - pillTargets[i].length,
+              1,
+              growable: true,
+            ),
           );
         } else if (pillTargets[i].length > pillsPerDay[i]) {
           pillTargets[i] = pillTargets[i].sublist(0, pillsPerDay[i]);
@@ -320,8 +359,8 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   void addPill() {
     for (int i = 0; i < 7; i++) {
       pillsPerDay[i] = 4;
-      pillCheck[i] = List.filled(4, 0);
-      pillTargets[i] = List.filled(4, 1);
+      pillCheck[i] = List.filled(4, 0, growable: true);
+      pillTargets[i] = List.filled(4, 1, growable: true);
       pillNames[i] = List.generate(4, (index) => "Pill ${index + 1}");
     }
   }
@@ -554,6 +593,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
 
                                           if (newPillData != null) {
                                             setState(() {
+                                              // Adds pill ONLY to the selected day
                                               pillCheck[selectedDayIndex].add(
                                                 0,
                                               );
@@ -613,6 +653,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                 ElevatedButton(
                                                   onPressed: () {
                                                     setState(() {
+                                                      // Removes pill ONLY from the selected day
                                                       if (index <
                                                           pillCheck[selectedDayIndex]
                                                               .length) {
@@ -714,6 +755,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                     if (newTarget != null &&
                                                         newTarget > 0) {
                                                       setState(() {
+                                                        // Updates target ONLY on the selected day
                                                         pillTargets[selectedDayIndex][index] =
                                                             newTarget;
                                                         if (pillCheck[selectedDayIndex][index] >
@@ -803,6 +845,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                     if (newName != null &&
                                                         newName.isNotEmpty) {
                                                       setState(() {
+                                                        // Updates name ONLY on the selected day
                                                         pillNames[selectedDayIndex][index] =
                                                             newName;
                                                       });
