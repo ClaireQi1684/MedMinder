@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -89,18 +90,23 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       final List<String> latestPillNames = List<String>.from(pillNames[0]);
       final List<int> latestPillTargets = List<int>.from(pillTargets[0]);
       final int latestPillCount = latestPillNames.length;
+      final List<List<int>> latestPillNotificationsIDs = List<List<int>>.from(
+        notificationIDs[0],
+      );
 
       pillsPerDay.removeAt(0);
       pillCheck.removeAt(0);
       pillTargets.removeAt(0);
       pillNames.removeAt(0);
       dayCheck.removeAt(0);
+      notificationIDs.removeAt(0);
 
       pillsPerDay.add(latestPillCount);
       pillCheck.add(List<int>.filled(latestPillCount, 0, growable: true));
       pillTargets.add(latestPillTargets);
       pillNames.add(latestPillNames);
       dayCheck.add(0);
+      notificationIDs.add(latestPillNotificationsIDs);
 
       if (currentScreenIndex > 2) {
         currentScreenIndex--;
@@ -124,6 +130,9 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     }
     return currentScreenIndex - 2;
   }
+
+  double timeWaking = 6;
+  double timeAsleep = 22;
 
   final now = tz.TZDateTime.now(tz.local);
   String get dayName => DateFormat("EEEE").format(now);
@@ -151,6 +160,12 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   var lastRecordedDate = tz.TZDateTime.now(tz.local);
 
   List<int> dayCheck = List.filled(7, 0, growable: true);
+
+  List<List<List<int>>> notificationIDs = List.generate(
+    7,
+    (_) => [],
+    growable: true,
+  );
 
   @override
   void initState() {
@@ -213,6 +228,9 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     String encodedPillCheck = jsonEncode(pillCheck);
     await prefs.setString('pillCheck', encodedPillCheck);
 
+    String encodedNotificationIDs = jsonEncode(notificationIDs);
+    await prefs.setString('notificationIDs', encodedNotificationIDs);
+
     String encodedPillTargets = jsonEncode(pillTargets);
     await prefs.setString('pillTargets', encodedPillTargets);
 
@@ -236,8 +254,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
         pillsPerDay = savedPills
             .map((e) => int.parse(e))
             .toList(growable: true);
-      } else {
-        addPill();
       }
 
       final savedDays = prefs.getStringList('dayCheck');
@@ -269,6 +285,22 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
             .toList(growable: true);
       }
 
+      final savedNotificationIDJson = prefs.getString('notificationIDs');
+      if (savedNotificationIDJson != null) {
+        List<dynamic> decoded = jsonDecode(savedNotificationIDJson);
+        notificationIDs = decoded
+            .map(
+              (innerList) => (innerList as List)
+                  .map(
+                    (innerList) => (innerList as List)
+                        .map((e) => e as int)
+                        .toList(growable: true),
+                  )
+                  .toList(growable: true),
+            )
+            .toList(growable: true);
+      }
+
       final savedPillNamesJson = prefs.getString('pillNames');
       if (savedPillNamesJson != null) {
         List<dynamic> decoded = jsonDecode(savedPillNamesJson);
@@ -295,6 +327,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       while (pillTargets.length < 7) pillTargets.add([]);
       while (pillNames.length < 7) pillNames.add([]);
       while (dayCheck.length < 7) dayCheck.add(0);
+      while (notificationIDs.length < 7) notificationIDs.add([]);
 
       for (int i = 0; i < 7; i++) {
         if (pillCheck[i].length < pillsPerDay[i]) {
@@ -319,6 +352,18 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
           );
         } else if (pillTargets[i].length > pillsPerDay[i]) {
           pillTargets[i] = pillTargets[i].sublist(0, pillsPerDay[i]);
+        }
+
+        if (notificationIDs[i].length < pillsPerDay[i]) {
+          notificationIDs[i].addAll(
+            List.generate(
+              pillsPerDay[i] - notificationIDs[i].length,
+              (index) => <int>[],
+              growable: true,
+            ),
+          );
+        } else if (notificationIDs[i].length > pillsPerDay[i]) {
+          notificationIDs[i] = notificationIDs[i].sublist(0, pillsPerDay[i]);
         }
 
         if (pillNames[i].length < pillsPerDay[i]) {
@@ -384,6 +429,51 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     final today = DateTime(now.year, now.month, now.day);
     final date = today.add(Duration(days: index));
     return DateFormat('EEEE').format(date);
+  }
+
+  void sendNotification(int pillID, int dayID, int timesTaken) {
+    DateTime now = tz.TZDateTime.now(tz.local);
+    double timeBetween = 0;
+    if (((now.weekday - 1) != dayID) || (now.hour >= 22)) {
+      timeBetween = (timeAsleep - timeWaking) / timesTaken;
+    } else {
+      int hoursToBedtime = 22 - now.hour;
+      DateTime bedtimeToday = now.add(Duration(hours: hoursToBedtime));
+      bedtimeToday = bedtimeToday.copyWith(minute: 0, second: 0);
+      timeBetween = (bedtimeToday.hour - now.hour - 1) / timesTaken;
+    }
+
+    while (notificationIDs[dayID].length <= pillID) {
+      notificationIDs[dayID].add([]);
+    }
+    notificationIDs[dayID][pillID] = List.filled(timesTaken, 0, growable: true);
+
+    String medName = pillNames[dayID][pillID];
+    for (int i = 1; i <= timesTaken; i++) {
+      int uniqueID = "$dayID-$pillID-$i".hashCode;
+      notificationIDs[dayID][pillID].add(uniqueID);
+      int j = 0;
+      while (j <= timeBetween) {
+        j++;
+      }
+      DateTime timeScheduled = now.add(Duration(hours: j * i));
+      NotificationService.scheduleNotification(
+        id: uniqueID,
+        title: "Take your $medName now!",
+        body: "It's time to take your meds! Click into MedMinder to check it off when you're done!",
+        scheduledTime: timeScheduled,
+      );
+    }
+  }
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  void deleteNotification(int pillID, int dayID) async {
+    for (int i = 0; i < pillTargets[dayID][pillID]; i++) {
+      int id = notificationIDs[dayID][pillID][i];
+      await flutterLocalNotificationsPlugin.cancel(id: id);
+    }
   }
 
   @override
@@ -606,9 +696,22 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                               pillsPerDay[selectedDayIndex] =
                                                   pillCheck[selectedDayIndex]
                                                       .length;
+
+                                              while (notificationIDs[selectedDayIndex]
+                                                      .length <
+                                                  pillsPerDay[selectedDayIndex]) {
+                                                notificationIDs[selectedDayIndex]
+                                                    .add([]);
+                                              }
                                             });
+                                            sendNotification(
+                                              pillsPerDay[selectedDayIndex] - 1,
+                                              selectedDayIndex,
+                                              pillTargets[selectedDayIndex][pillsPerDay[selectedDayIndex] -
+                                                  1],
+                                            );
                                             saveData();
-                                            print("Add pill button clicked");
+                                            // print("Add pill button clicked");
                                           }
                                         },
                                         icon: const Icon(Icons.add),
@@ -667,11 +770,15 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                             pillCheck[selectedDayIndex]
                                                                 .length;
                                                       }
+                                                      deleteNotification(
+                                                        pillsPerDay[selectedDayIndex],
+                                                        selectedDayIndex,
+                                                      );
                                                     });
                                                     saveData();
-                                                    print(
-                                                      "Pill $index removed",
-                                                    );
+                                                    // print(
+                                                    //   "Pill $index removed",
+                                                    // );
                                                   },
                                                   style:
                                                       ElevatedButton.styleFrom(
@@ -881,7 +988,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                   pillCheck[selectedDayIndex][index]++;
                                                 });
                                                 saveData();
-                                                print("pill $index completed");
+                                                // print("pill $index completed");
                                               },
                                               style: ElevatedButton.styleFrom(
                                                 fixedSize: const Size(145, 145),
@@ -903,7 +1010,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                       0;
                                                 });
                                                 saveData();
-                                                print("pill $index reset");
+                                                // print("pill $index reset");
                                               },
                                               icon: const Icon(Icons.check),
                                               iconSize: 130,
