@@ -377,16 +377,28 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   Future<void> sendNotification(
     int pillID,
     int dayID,
-    int timesTaken,
+    int totalTargetClicks,
     TimeOfDay pickedTime,
   ) async {
     final now = tz.TZDateTime.now(tz.local);
-    final targetWeekday = (now.weekday + dayID) % 7;
+
+    final targetWeekday = dayID + now.weekday;
     if (targetWeekday < DateTime.monday || targetWeekday > DateTime.sunday) {
       debugPrint('ERROR: Invalid dayID: $dayID');
       return;
     }
-    debugPrint('dayID: $dayID');
+
+    // 1. Calculate how many doses are actually left to take
+    final int currentClicks = pillCheck[dayID][pillID];
+    final int remainingDoses = totalTargetClicks - currentClicks;
+
+    // If all doses for this pill are already taken, don't schedule any new notifications!
+    if (remainingDoses <= 0) {
+      debugPrint(
+        'All doses already taken for pill $pillID. Skipping notification schedule.',
+      );
+      return;
+    }
 
     var scheduledTime = tz.TZDateTime(
       tz.local,
@@ -398,43 +410,76 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     );
 
     // Find the next occurrence of the selected weekday and time.
-    // If today's selected time has already passed, schedule next week.
     while (scheduledTime.weekday != targetWeekday ||
         !scheduledTime.isAfter(now)) {
       scheduledTime = scheduledTime.add(const Duration(days: 1));
     }
+    debugPrint("targetWeekday: $targetWeekday");
+    debugPrint("dayID: $dayID");
+    int dayOfWeek = now.weekday;
+    debugPrint("current day of week: $dayOfWeek");
 
     // Ensure the day has a list for this pill.
     while (notificationIDs[dayID].length <= pillID) {
       notificationIDs[dayID].add([]);
     }
 
-    // Create the notification ID list with the correct length.
-    notificationIDs[dayID][pillID] = List<int>.filled(timesTaken, 0);
+    // Initialize list with the size of remaining doses
+    notificationIDs[dayID][pillID] = List<int>.filled(remainingDoses, 0);
 
     final medName = pillNames[dayID][pillID];
 
-    for (int i = 0; i < timesTaken; i++) {
-      final uniqueID = "$dayID-$pillID-$i".hashCode;
+    // 2. Define your end window (10 PM / 22:00 on that same day)
+    final endTime = tz.TZDateTime(
+      tz.local,
+      scheduledTime.year,
+      scheduledTime.month,
+      scheduledTime.day,
+      22, // 10 PM
+      0,
+    );
+
+    // 3. Calculate interval using ONLY the remaining doses
+    Duration interval;
+    if (scheduledTime.isBefore(endTime)) {
+      final totalMinutes = endTime.difference(scheduledTime).inMinutes;
+      // Divide remaining time window by remaining doses
+      final intervalMinutes = totalMinutes ~/ remainingDoses;
+      interval = Duration(minutes: intervalMinutes);
+    } else {
+      interval = const Duration(hours: 4);
+    }
+
+    // 4. Loop and schedule only the remaining doses
+    for (int i = 0; i < remainingDoses; i++) {
+      // Offset the hash ID by currentClicks so it doesn't conflict with past taken doses
+      final uniqueID = "$dayID-$pillID-${currentClicks + i}".hashCode;
       notificationIDs[dayID][pillID][i] = uniqueID;
 
-      final doseTime = scheduledTime.add(Duration(hours: 4 * i));
+      final doseTime = scheduledTime.add(interval * i);
 
       await NotificationService.scheduleNotification(
         id: uniqueID,
         title: "Take your $medName now!",
-        body: "It's time to take your meds! Click into MedMinder to check it off when you're done!",
+        body: "It's time to take your meds! Click into MedMinder to check it off when you're done.",
         scheduledTime: doseTime,
       );
     }
 
-    debugPrint('dayID: $dayID');
-    debugPrint('targetWeekday: $targetWeekday');
-    debugPrint('today weekday: ${now.weekday}');
-    debugPrint('scheduledTime: $scheduledTime');
-
+    // 5. Debug Console Log
     debugPrint(
-      'Scheduled $timesTaken notifications for $medName starting at $scheduledTime',
+      '--- RESCHEDULED NOTIFICATIONS FOR $medName ($remainingDoses remaining) ---',
+    );
+    for (int i = 0; i < remainingDoses; i++) {
+      int offsetMinutes = (interval.inMinutes * i);
+      DateTime doseTime = scheduledTime.add(Duration(minutes: offsetMinutes));
+
+      debugPrint(
+        'Remaining Dose ${i + 1}: ID ${notificationIDs[dayID][pillID][i]} scheduled at $doseTime',
+      );
+    }
+    debugPrint(
+      '-----------------------------------------------------------------------',
     );
   }
 
@@ -1090,6 +1135,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                             size: 20,
                                             color: Colors.black54,
                                           ),
+                                          // Inside your alarm clock icon onPressed:
                                           onPressed: () async {
                                             final TimeOfDay? picked =
                                                 await showTimePicker(
@@ -1105,10 +1151,14 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                     };
                                               });
                                               saveData();
+
+                                              // 1. Cancel old alarms
                                               deleteNotification(
                                                 index,
                                                 selectedDayIndex,
                                               );
+
+                                              // 2. Schedule new alarms passing the targetClicks (it will factor in currentClicks automatically)
                                               sendNotification(
                                                 index,
                                                 selectedDayIndex,
