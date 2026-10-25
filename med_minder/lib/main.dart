@@ -9,7 +9,6 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'package:intl/intl.dart';
-
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'notification.dart';
@@ -51,8 +50,7 @@ class MedMinder extends StatefulWidget {
 
 class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   int currentScreenIndex = 0;
-  int editingDayIndex =
-      2; // Tracks which day screen was being viewed before entering edit mode
+  int editingDayIndex = 2;
 
   final List<String> screens = [
     "home",
@@ -66,12 +64,10 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     "Sunday",
   ];
 
-  // History variable to persist past days' data
   List<Map<String, dynamic>> pillHistory = [];
 
   void rollOverToNewDay() {
     setState(() {
-      // Archive expiring day's data to history before removal
       if (pillsPerDay.isNotEmpty &&
           pillNames.isNotEmpty &&
           pillCheck.isNotEmpty) {
@@ -85,10 +81,10 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
         pillHistory.add(expiredDayData);
       }
 
-      // Capture the latest pill configuration from Today (index 0)
-      // before it's removed, preserving any added or modified pills!
       final List<String> latestPillNames = List<String>.from(pillNames[0]);
       final List<int> latestPillTargets = List<int>.from(pillTargets[0]);
+      final List<Map<String, int>> latestPillTimes =
+          List<Map<String, int>>.from(pillTimes[0]);
       final int latestPillCount = latestPillNames.length;
       final List<List<int>> latestPillNotificationsIDs = List<List<int>>.from(
         notificationIDs[0],
@@ -98,6 +94,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       pillCheck.removeAt(0);
       pillTargets.removeAt(0);
       pillNames.removeAt(0);
+      pillTimes.removeAt(0);
       dayCheck.removeAt(0);
       notificationIDs.removeAt(0);
 
@@ -105,6 +102,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       pillCheck.add(List<int>.filled(latestPillCount, 0, growable: true));
       pillTargets.add(latestPillTargets);
       pillNames.add(latestPillNames);
+      pillTimes.add(latestPillTimes);
       dayCheck.add(0);
       notificationIDs.add(latestPillNotificationsIDs);
 
@@ -121,18 +119,12 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  List<Pill> pills = [];
-  int checkCounter = 0;
-
   int get selectedDayIndex {
     if (currentScreenIndex == 1) {
       return editingDayIndex - 2;
     }
     return currentScreenIndex - 2;
   }
-
-  double timeWaking = 6;
-  double timeAsleep = 22;
 
   final now = tz.TZDateTime.now(tz.local);
   String get dayName => DateFormat("EEEE").format(now);
@@ -157,10 +149,14 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     growable: true,
   );
 
+  List<List<Map<String, int>>> pillTimes = List.generate(
+    7,
+    (dayIndex) => [],
+    growable: true,
+  );
+
   var lastRecordedDate = tz.TZDateTime.now(tz.local);
-
   List<int> dayCheck = List.filled(7, 0, growable: true);
-
   List<List<List<int>>> notificationIDs = List.generate(
     7,
     (_) => [],
@@ -177,7 +173,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-
     if (state == AppLifecycleState.resumed) {
       checkForRollOver();
     }
@@ -185,7 +180,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
 
   Future<void> checkForRollOver() async {
     final now = tz.TZDateTime.now(tz.local);
-
     final todayDate = tz.TZDateTime(tz.local, now.year, now.month, now.day);
     final lastDate = tz.TZDateTime(
       tz.local,
@@ -195,51 +189,38 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     );
 
     int dayDifference = todayDate.difference(lastDate).inDays;
-
     if (dayDifference != 0) {
       for (int i = 0; i < dayDifference; i++) {
         rollOverToNewDay();
       }
     }
-
     lastRecordedDate = now;
     saveData();
   }
 
   Future<void> initializeApp() async {
     await loadData();
-
     if (!mounted) return;
-
     await checkForRollOver();
   }
 
   Future<void> saveData() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    List<String> stringPillsPerDay = pillsPerDay
-        .map((e) => e.toString())
-        .toList();
-    await prefs.setStringList('pillsPerDay', stringPillsPerDay);
-
-    List<String> stringDayCheck = dayCheck.map((e) => e.toString()).toList();
-    await prefs.setStringList('dayCheck', stringDayCheck);
-
-    String encodedPillCheck = jsonEncode(pillCheck);
-    await prefs.setString('pillCheck', encodedPillCheck);
-
-    String encodedNotificationIDs = jsonEncode(notificationIDs);
-    await prefs.setString('notificationIDs', encodedNotificationIDs);
-
-    String encodedPillTargets = jsonEncode(pillTargets);
-    await prefs.setString('pillTargets', encodedPillTargets);
-
-    String encodedPillNames = jsonEncode(pillNames);
-    await prefs.setString('pillNames', encodedPillNames);
-
-    String encodedHistory = jsonEncode(pillHistory);
-    await prefs.setString('pillHistory', encodedHistory);
-
+    await prefs.setStringList(
+      'pillsPerDay',
+      pillsPerDay.map((e) => e.toString()).toList(),
+    );
+    await prefs.setStringList(
+      'dayCheck',
+      dayCheck.map((e) => e.toString()).toList(),
+    );
+    await prefs.setString('pillCheck', jsonEncode(pillCheck));
+    await prefs.setString('notificationIDs', jsonEncode(notificationIDs));
+    await prefs.setString('pillTargets', jsonEncode(pillTargets));
+    await prefs.setString('pillNames', jsonEncode(pillNames));
+    await prefs.setString('pillTimes', jsonEncode(pillTimes));
+    await prefs.setString('pillHistory', jsonEncode(pillHistory));
     await prefs.setString(
       'lastRecordedDate',
       lastRecordedDate.toIso8601String(),
@@ -313,6 +294,18 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
             .toList(growable: true);
       }
 
+      final savedPillTimesJson = prefs.getString('pillTimes');
+      if (savedPillTimesJson != null) {
+        List<dynamic> decoded = jsonDecode(savedPillTimesJson);
+        pillTimes = decoded
+            .map(
+              (innerList) => (innerList as List)
+                  .map((e) => Map<String, int>.from(e))
+                  .toList(growable: true),
+            )
+            .toList(growable: true);
+      }
+
       final savedHistoryJson = prefs.getString('pillHistory');
       if (savedHistoryJson != null) {
         List<dynamic> decodedHistory = jsonDecode(savedHistoryJson);
@@ -321,58 +314,17 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
             .toList(growable: true);
       }
 
-      // SAFETY SYNC: Ensure lists match pillsPerDay to prevent out-of-bounds errors
       while (pillsPerDay.length < 7) pillsPerDay.add(0);
       while (pillCheck.length < 7) pillCheck.add([]);
       while (pillTargets.length < 7) pillTargets.add([]);
       while (pillNames.length < 7) pillNames.add([]);
+      while (pillTimes.length < 7) pillTimes.add([]);
       while (dayCheck.length < 7) dayCheck.add(0);
       while (notificationIDs.length < 7) notificationIDs.add([]);
 
       for (int i = 0; i < 7; i++) {
-        if (pillCheck[i].length < pillsPerDay[i]) {
-          pillCheck[i].addAll(
-            List.filled(
-              pillsPerDay[i] - pillCheck[i].length,
-              0,
-              growable: true,
-            ),
-          );
-        } else if (pillCheck[i].length > pillsPerDay[i]) {
-          pillCheck[i] = pillCheck[i].sublist(0, pillsPerDay[i]);
-        }
-
-        if (pillTargets[i].length < pillsPerDay[i]) {
-          pillTargets[i].addAll(
-            List.filled(
-              pillsPerDay[i] - pillTargets[i].length,
-              1,
-              growable: true,
-            ),
-          );
-        } else if (pillTargets[i].length > pillsPerDay[i]) {
-          pillTargets[i] = pillTargets[i].sublist(0, pillsPerDay[i]);
-        }
-
-        if (notificationIDs[i].length < pillsPerDay[i]) {
-          notificationIDs[i].addAll(
-            List.generate(
-              pillsPerDay[i] - notificationIDs[i].length,
-              (index) => <int>[],
-              growable: true,
-            ),
-          );
-        } else if (notificationIDs[i].length > pillsPerDay[i]) {
-          notificationIDs[i] = notificationIDs[i].sublist(0, pillsPerDay[i]);
-        }
-
-        if (pillNames[i].length < pillsPerDay[i]) {
-          int start = pillNames[i].length;
-          for (int k = start; k < pillsPerDay[i]; k++) {
-            pillNames[i].add("Pill ${k + 1}");
-          }
-        } else if (pillNames[i].length > pillsPerDay[i]) {
-          pillNames[i] = pillNames[i].sublist(0, pillsPerDay[i]);
+        while (pillTimes[i].length < pillsPerDay[i]) {
+          pillTimes[i].add({"hour": 8, "minute": 0});
         }
       }
 
@@ -401,15 +353,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     }
   }
 
-  void addPill() {
-    for (int i = 0; i < 7; i++) {
-      pillsPerDay[i] = 4;
-      pillCheck[i] = List.filled(4, 0, growable: true);
-      pillTargets[i] = List.filled(4, 1, growable: true);
-      pillNames[i] = List.generate(4, (index) => "Pill ${index + 1}");
-    }
-  }
-
   bool allPillsTaken(int dayIndex) {
     if (dayIndex < 0 || dayIndex >= pillsPerDay.length) return false;
     for (int i = 0; i < pillsPerDay[dayIndex]; i++) {
@@ -431,48 +374,75 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
     return DateFormat('EEEE').format(date);
   }
 
-  void sendNotification(int pillID, int dayID, int timesTaken) {
-    DateTime now = tz.TZDateTime.now(tz.local);
-    double timeBetween = 0;
-    if (((now.weekday - 1) != dayID) || (now.hour >= 22)) {
-      timeBetween = (timeAsleep - timeWaking) / timesTaken;
-    } else {
-      int hoursToBedtime = 22 - now.hour;
-      DateTime bedtimeToday = now.add(Duration(hours: hoursToBedtime));
-      bedtimeToday = bedtimeToday.copyWith(minute: 0, second: 0);
-      timeBetween = (bedtimeToday.hour - now.hour - 1) / timesTaken;
+  Future<void> sendNotification(
+    int pillID,
+    int dayID,
+    int timesTaken,
+    TimeOfDay pickedTime,
+  ) async {
+    final now = tz.TZDateTime.now(tz.local);
+    final targetWeekday = (now.weekday + dayID) % 7;
+    if (targetWeekday < DateTime.monday || targetWeekday > DateTime.sunday) {
+      debugPrint('ERROR: Invalid dayID: $dayID');
+      return;
+    }
+    debugPrint('dayID: $dayID');
+
+    var scheduledTime = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    // Find the next occurrence of the selected weekday and time.
+    // If today's selected time has already passed, schedule next week.
+    while (scheduledTime.weekday != targetWeekday ||
+        !scheduledTime.isAfter(now)) {
+      scheduledTime = scheduledTime.add(const Duration(days: 1));
     }
 
+    // Ensure the day has a list for this pill.
     while (notificationIDs[dayID].length <= pillID) {
       notificationIDs[dayID].add([]);
     }
-    notificationIDs[dayID][pillID] = List.filled(timesTaken, 0, growable: true);
 
-    String medName = pillNames[dayID][pillID];
-    for (int i = 1; i <= timesTaken; i++) {
-      int uniqueID = "$dayID-$pillID-$i".hashCode;
-      notificationIDs[dayID][pillID].add(uniqueID);
-      int j = 0;
-      while (j <= timeBetween) {
-        j++;
-      }
-      DateTime timeScheduled = now.add(Duration(hours: j * i));
-      NotificationService.scheduleNotification(
+    // Create the notification ID list with the correct length.
+    notificationIDs[dayID][pillID] = List<int>.filled(timesTaken, 0);
+
+    final medName = pillNames[dayID][pillID];
+
+    for (int i = 0; i < timesTaken; i++) {
+      final uniqueID = "$dayID-$pillID-$i".hashCode;
+      notificationIDs[dayID][pillID][i] = uniqueID;
+
+      final doseTime = scheduledTime.add(Duration(hours: 4 * i));
+
+      await NotificationService.scheduleNotification(
         id: uniqueID,
         title: "Take your $medName now!",
         body: "It's time to take your meds! Click into MedMinder to check it off when you're done!",
-        scheduledTime: timeScheduled,
+        scheduledTime: doseTime,
       );
     }
+
+    debugPrint('dayID: $dayID');
+    debugPrint('targetWeekday: $targetWeekday');
+    debugPrint('today weekday: ${now.weekday}');
+    debugPrint('scheduledTime: $scheduledTime');
+
+    debugPrint(
+      'Scheduled $timesTaken notifications for $medName starting at $scheduledTime',
+    );
   }
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
-
   void deleteNotification(int pillID, int dayID) async {
-    for (int i = 0; i < pillTargets[dayID][pillID]; i++) {
-      int id = notificationIDs[dayID][pillID][i];
-      await flutterLocalNotificationsPlugin.cancel(id: id);
+    if (pillID < notificationIDs[dayID].length) {
+      for (int id in notificationIDs[dayID][pillID]) {
+        await NotificationService.cancel(id);
+      }
     }
   }
 
@@ -488,7 +458,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
         body: Center(
           child: Column(
             children: [
-              Center(
+              const Center(
                 child: Text(
                   "WELCOMED TO MEDMINDERRRRUYIUWHUHS",
                   style: TextStyle(fontSize: 70),
@@ -555,7 +525,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                         ),
                 ],
               ),
-              // DAY CARD
               Center(
                 child: Container(
                   height: 680,
@@ -578,7 +547,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                             ) {
                               if (isEditing &&
                                   index == pillsPerDay[selectedDayIndex]) {
-                                // Gray addition button in edit mode
                                 return Container(
                                   padding: const EdgeInsets.all(7.0),
                                   color: Colors.grey.shade400,
@@ -595,17 +563,21 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                           final TextEditingController
                                           targetController =
                                               TextEditingController(text: "1");
+                                          TimeOfDay selectedTime =
+                                              const TimeOfDay(
+                                                hour: 8,
+                                                minute: 0,
+                                              );
 
                                           final Map<String, dynamic>?
-                                          newPillData =
-                                              await showDialog<
-                                                Map<String, dynamic>
-                                              >(
-                                                context: context,
-                                                builder: (BuildContext context) {
+                                          newPillData = await showDialog<Map<String, dynamic>>(
+                                            context: context,
+                                            builder: (BuildContext context) {
+                                              return StatefulBuilder(
+                                                builder: (context, setStateDialog) {
                                                   return AlertDialog(
                                                     title: const Text(
-                                                      "Add Pill",
+                                                      "Add Pill & Time",
                                                     ),
                                                     content: Column(
                                                       mainAxisSize:
@@ -634,6 +606,36 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                               const InputDecoration(
                                                                 labelText: "Required Clicks",
                                                               ),
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 12,
+                                                        ),
+                                                        ElevatedButton.icon(
+                                                          onPressed: () async {
+                                                            final TimeOfDay?
+                                                            picked =
+                                                                await showTimePicker(
+                                                                  context:
+                                                                      context,
+                                                                  initialTime:
+                                                                      selectedTime,
+                                                                );
+                                                            if (picked !=
+                                                                null) {
+                                                              setStateDialog(
+                                                                () {
+                                                                  selectedTime =
+                                                                      picked;
+                                                                },
+                                                              );
+                                                            }
+                                                          },
+                                                          icon: const Icon(
+                                                            Icons.access_time,
+                                                          ),
+                                                          label: Text(
+                                                            "Time: ${selectedTime.format(context)}",
+                                                          ),
                                                         ),
                                                       ],
                                                     ),
@@ -669,6 +671,8 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                               "name": nameVal,
                                                               "target":
                                                                   targetVal,
+                                                              "time":
+                                                                  selectedTime,
                                                             });
                                                           }
                                                         },
@@ -680,10 +684,14 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                   );
                                                 },
                                               );
+                                            },
+                                          );
 
                                           if (newPillData != null) {
+                                            TimeOfDay pickedT =
+                                                newPillData["time"]
+                                                    as TimeOfDay;
                                             setState(() {
-                                              // Adds pill ONLY to the selected day
                                               pillCheck[selectedDayIndex].add(
                                                 0,
                                               );
@@ -693,6 +701,10 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                               pillNames[selectedDayIndex].add(
                                                 newPillData["name"] as String,
                                               );
+                                              pillTimes[selectedDayIndex].add({
+                                                "hour": pickedT.hour,
+                                                "minute": pickedT.minute,
+                                              });
                                               pillsPerDay[selectedDayIndex] =
                                                   pillCheck[selectedDayIndex]
                                                       .length;
@@ -709,9 +721,9 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                               selectedDayIndex,
                                               pillTargets[selectedDayIndex][pillsPerDay[selectedDayIndex] -
                                                   1],
+                                              pickedT,
                                             );
                                             saveData();
-                                            // print("Add pill button clicked");
                                           }
                                         },
                                         icon: const Icon(Icons.add),
@@ -733,292 +745,380 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                   pillTargets[selectedDayIndex][index];
                               bool isTaken = currentClicks >= targetClicks;
 
+                              Map<String, int> timeMap =
+                                  pillTimes[selectedDayIndex][index];
+                              TimeOfDay pillTime = TimeOfDay(
+                                hour: timeMap["hour"] ?? 8,
+                                minute: timeMap["minute"] ?? 0,
+                              );
+
                               return Container(
                                 padding: const EdgeInsets.all(3.0),
                                 color: Colors.lime,
-                                child: Column(
+                                child: Stack(
                                   children: [
-                                    Center(
-                                      child: Text(
-                                        currentPillName,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
+                                    Column(
+                                      children: [
+                                        Center(
+                                          child: Text(
+                                            currentPillName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                    Center(
-                                      child: isEditing
-                                          ? Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                // Top Button: Remove
-                                                ElevatedButton(
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      // Removes pill ONLY from the selected day
-                                                      if (index <
-                                                          pillCheck[selectedDayIndex]
-                                                              .length) {
-                                                        pillCheck[selectedDayIndex]
-                                                            .removeAt(index);
-                                                        pillTargets[selectedDayIndex]
-                                                            .removeAt(index);
-                                                        pillNames[selectedDayIndex]
-                                                            .removeAt(index);
-                                                        pillsPerDay[selectedDayIndex] =
+                                        Center(
+                                          child: isEditing
+                                              ? Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    // REMOVE Button
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        setState(() {
+                                                          if (index <
+                                                              pillCheck[selectedDayIndex]
+                                                                  .length) {
                                                             pillCheck[selectedDayIndex]
-                                                                .length;
-                                                      }
-                                                      deleteNotification(
-                                                        pillsPerDay[selectedDayIndex],
-                                                        selectedDayIndex,
-                                                      );
-                                                    });
-                                                    saveData();
-                                                    // print(
-                                                    //   "Pill $index removed",
-                                                    // );
-                                                  },
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        fixedSize: const Size(
-                                                          145,
-                                                          35,
+                                                                .removeAt(
+                                                                  index,
+                                                                );
+                                                            pillTargets[selectedDayIndex]
+                                                                .removeAt(
+                                                                  index,
+                                                                );
+                                                            pillNames[selectedDayIndex]
+                                                                .removeAt(
+                                                                  index,
+                                                                );
+                                                            pillTimes[selectedDayIndex]
+                                                                .removeAt(
+                                                                  index,
+                                                                );
+                                                            pillsPerDay[selectedDayIndex] =
+                                                                pillCheck[selectedDayIndex]
+                                                                    .length;
+                                                          }
+                                                          deleteNotification(
+                                                            index,
+                                                            selectedDayIndex,
+                                                          );
+                                                        });
+                                                        saveData();
+                                                      },
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            fixedSize:
+                                                                const Size(
+                                                                  145,
+                                                                  35,
+                                                                ),
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .red
+                                                                    .shade300,
+                                                          ),
+                                                      child: const Center(
+                                                        child: Text(
+                                                          "REMOVE",
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.white,
+                                                          ),
                                                         ),
-                                                        backgroundColor:
-                                                            Colors.red.shade300,
-                                                      ),
-                                                  child: const Center(
-                                                    child: Text(
-                                                      "REMOVE",
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.white,
                                                       ),
                                                     ),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 3),
-                                                // Middle Button: Input target number
-                                                ElevatedButton(
-                                                  onPressed: () async {
-                                                    final TextEditingController
-                                                    targetController =
-                                                        TextEditingController(
-                                                          text: targetClicks
-                                                              .toString(),
-                                                        );
-                                                    final int?
-                                                    newTarget = await showDialog<int>(
-                                                      context: context,
-                                                      builder: (BuildContext context) {
-                                                        return AlertDialog(
-                                                          title: const Text(
-                                                            "Set Required Clicks",
-                                                          ),
-                                                          content: TextField(
-                                                            controller:
-                                                                targetController,
-                                                            keyboardType:
-                                                                TextInputType
-                                                                    .number,
-                                                            decoration:
-                                                                const InputDecoration(
-                                                                  labelText: "Required clicks",
+                                                    const SizedBox(height: 3),
+                                                    // TARGET Button
+                                                    ElevatedButton(
+                                                      onPressed: () async {
+                                                        final TextEditingController
+                                                        targetController =
+                                                            TextEditingController(
+                                                              text: targetClicks
+                                                                  .toString(),
+                                                            );
+                                                        final int?
+                                                        newTarget = await showDialog<int>(
+                                                          context: context,
+                                                          builder: (BuildContext context) {
+                                                            return AlertDialog(
+                                                              title: const Text(
+                                                                "Set Required Clicks",
+                                                              ),
+                                                              content: TextField(
+                                                                controller:
+                                                                    targetController,
+                                                                keyboardType:
+                                                                    TextInputType
+                                                                        .number,
+                                                                decoration:
+                                                                    const InputDecoration(
+                                                                      labelText: "Required clicks",
+                                                                    ),
+                                                                autofocus: true,
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.of(
+                                                                        context,
+                                                                      ).pop(),
+                                                                  child:
+                                                                      const Text(
+                                                                        "Cancel",
+                                                                      ),
                                                                 ),
-                                                            autofocus: true,
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.of(
-                                                                    context,
-                                                                  ).pop(),
-                                                              child: const Text(
-                                                                "Cancel",
-                                                              ),
-                                                            ),
-                                                            ElevatedButton(
-                                                              onPressed: () {
-                                                                final int?
-                                                                val = int.tryParse(
-                                                                  targetController
-                                                                      .text,
-                                                                );
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).pop(val);
-                                                              },
-                                                              child: const Text(
-                                                                "Save",
-                                                              ),
-                                                            ),
-                                                          ],
+                                                                ElevatedButton(
+                                                                  onPressed: () {
+                                                                    final int?
+                                                                    val = int.tryParse(
+                                                                      targetController
+                                                                          .text,
+                                                                    );
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).pop(val);
+                                                                  },
+                                                                  child:
+                                                                      const Text(
+                                                                        "Save",
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            );
+                                                          },
                                                         );
-                                                      },
-                                                    );
-
-                                                    if (newTarget != null &&
-                                                        newTarget > 0) {
-                                                      setState(() {
-                                                        // Updates target ONLY on the selected day
-                                                        pillTargets[selectedDayIndex][index] =
-                                                            newTarget;
-                                                        if (pillCheck[selectedDayIndex][index] >
-                                                            newTarget) {
-                                                          pillCheck[selectedDayIndex][index] =
-                                                              newTarget;
+                                                        if (newTarget != null &&
+                                                            newTarget > 0) {
+                                                          setState(() {
+                                                            pillTargets[selectedDayIndex][index] =
+                                                                newTarget;
+                                                            if (pillCheck[selectedDayIndex][index] >
+                                                                newTarget) {
+                                                              pillCheck[selectedDayIndex][index] =
+                                                                  newTarget;
+                                                            }
+                                                          });
+                                                          saveData();
                                                         }
-                                                      });
-                                                      saveData();
-                                                    }
+                                                      },
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            fixedSize:
+                                                                const Size(
+                                                                  145,
+                                                                  35,
+                                                                ),
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .blue
+                                                                    .shade300,
+                                                          ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          "Target: $targetClicks",
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 12,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 3),
+                                                    // RENAME Button
+                                                    ElevatedButton(
+                                                      onPressed: () async {
+                                                        final TextEditingController
+                                                        nameController =
+                                                            TextEditingController(
+                                                              text:
+                                                                  currentPillName,
+                                                            );
+                                                        final String?
+                                                        newName = await showDialog<String>(
+                                                          context: context,
+                                                          builder: (BuildContext context) {
+                                                            return AlertDialog(
+                                                              title: const Text(
+                                                                "Edit Pill Name",
+                                                              ),
+                                                              content: TextField(
+                                                                controller:
+                                                                    nameController,
+                                                                decoration:
+                                                                    const InputDecoration(
+                                                                      labelText: "Pill Name",
+                                                                    ),
+                                                                autofocus: true,
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed: () =>
+                                                                      Navigator.of(
+                                                                        context,
+                                                                      ).pop(),
+                                                                  child:
+                                                                      const Text(
+                                                                        "Cancel",
+                                                                      ),
+                                                                ),
+                                                                ElevatedButton(
+                                                                  onPressed: () {
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).pop(
+                                                                      nameController
+                                                                          .text
+                                                                          .trim(),
+                                                                    );
+                                                                  },
+                                                                  child:
+                                                                      const Text(
+                                                                        "Save",
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            );
+                                                          },
+                                                        );
+
+                                                        if (newName != null &&
+                                                            newName
+                                                                .isNotEmpty) {
+                                                          setState(() {
+                                                            pillNames[selectedDayIndex][index] =
+                                                                newName;
+                                                          });
+                                                          saveData();
+                                                        }
+                                                      },
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            fixedSize:
+                                                                const Size(
+                                                                  145,
+                                                                  35,
+                                                                ),
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .orangeAccent
+                                                                    .shade200,
+                                                          ),
+                                                      child: const Center(
+                                                        child: Text(
+                                                          "Edit Name",
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : !isTaken
+                                              ? ElevatedButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      pillCheck[selectedDayIndex][index]++;
+                                                      if (pillCheck[selectedDayIndex][index] >=
+                                                          targetClicks) {
+                                                        deleteNotification(
+                                                          index,
+                                                          selectedDayIndex,
+                                                        );
+                                                      }
+                                                    });
+                                                    saveData();
                                                   },
                                                   style:
                                                       ElevatedButton.styleFrom(
                                                         fixedSize: const Size(
                                                           145,
-                                                          35,
+                                                          145,
                                                         ),
-                                                        backgroundColor: Colors
-                                                            .blue
-                                                            .shade300,
                                                       ),
                                                   child: Center(
                                                     child: Text(
-                                                      "Target: $targetClicks",
+                                                      "TAKE\n($currentClicks/$targetClicks)",
                                                       style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.white,
+                                                        fontSize: 16,
                                                       ),
+                                                      textAlign:
+                                                          TextAlign.center,
                                                     ),
                                                   ),
-                                                ),
-                                                const SizedBox(height: 3),
-                                                // Bottom Button: Edit Pill Name
-                                                ElevatedButton(
-                                                  onPressed: () async {
-                                                    final TextEditingController
-                                                    nameController =
-                                                        TextEditingController(
-                                                          text: currentPillName,
-                                                        );
-                                                    final String?
-                                                    newName = await showDialog<String>(
-                                                      context: context,
-                                                      builder: (BuildContext context) {
-                                                        return AlertDialog(
-                                                          title: const Text(
-                                                            "Edit Pill Name",
-                                                          ),
-                                                          content: TextField(
-                                                            controller:
-                                                                nameController,
-                                                            decoration:
-                                                                const InputDecoration(
-                                                                  labelText: "Pill Name",
-                                                                ),
-                                                            autofocus: true,
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.of(
-                                                                    context,
-                                                                  ).pop(),
-                                                              child: const Text(
-                                                                "Cancel",
-                                                              ),
-                                                            ),
-                                                            ElevatedButton(
-                                                              onPressed: () {
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).pop(
-                                                                  nameController
-                                                                      .text
-                                                                      .trim(),
-                                                                );
-                                                              },
-                                                              child: const Text(
-                                                                "Save",
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        );
-                                                      },
-                                                    );
-
-                                                    if (newName != null &&
-                                                        newName.isNotEmpty) {
-                                                      setState(() {
-                                                        // Updates name ONLY on the selected day
-                                                        pillNames[selectedDayIndex][index] =
-                                                            newName;
-                                                      });
-                                                      saveData();
-                                                    }
+                                                )
+                                              : IconButton(
+                                                  onPressed: () {
+                                                    setState(() {
+                                                      pillCheck[selectedDayIndex][index] =
+                                                          0;
+                                                      sendNotification(
+                                                        index,
+                                                        selectedDayIndex,
+                                                        targetClicks,
+                                                        pillTime,
+                                                      );
+                                                    });
+                                                    saveData();
                                                   },
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        fixedSize: const Size(
-                                                          145,
-                                                          35,
-                                                        ),
-                                                        backgroundColor: Colors
-                                                            .orangeAccent
-                                                            .shade200,
-                                                      ),
-                                                  child: const Center(
-                                                    child: Text(
-                                                      "Edit Name",
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.white,
-                                                      ),
+                                                  icon: const Icon(Icons.check),
+                                                  iconSize: 130,
+                                                  style: IconButton.styleFrom(
+                                                    fixedSize: const Size(
+                                                      145,
+                                                      145,
                                                     ),
                                                   ),
                                                 ),
-                                              ],
-                                            )
-                                          : !isTaken
-                                          ? ElevatedButton(
-                                              onPressed: () {
-                                                setState(() {
-                                                  pillCheck[selectedDayIndex][index]++;
-                                                });
-                                                saveData();
-                                                // print("pill $index completed");
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                fixedSize: const Size(145, 145),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  "TAKE\n($currentClicks/$targetClicks)",
-                                                  style: const TextStyle(
-                                                    fontSize: 16,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ),
-                                            )
-                                          : IconButton(
-                                              onPressed: () {
-                                                setState(() {
-                                                  pillCheck[selectedDayIndex][index] =
-                                                      0;
-                                                });
-                                                saveData();
-                                                // print("pill $index reset");
-                                              },
-                                              icon: const Icon(Icons.check),
-                                              iconSize: 130,
-                                              style: IconButton.styleFrom(
-                                                fixedSize: const Size(145, 145),
-                                              ),
-                                            ),
+                                        ),
+                                      ],
                                     ),
+                                    // Alarm clock icon displays ONLY on main cards (not on edit screen)
+                                    if (!isEditing)
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.alarm,
+                                            size: 20,
+                                            color: Colors.black54,
+                                          ),
+                                          onPressed: () async {
+                                            final TimeOfDay? picked =
+                                                await showTimePicker(
+                                                  context: context,
+                                                  initialTime: pillTime,
+                                                );
+                                            if (picked != null) {
+                                              setState(() {
+                                                pillTimes[selectedDayIndex][index] =
+                                                    {
+                                                      "hour": picked.hour,
+                                                      "minute": picked.minute,
+                                                    };
+                                              });
+                                              saveData();
+                                              deleteNotification(
+                                                index,
+                                                selectedDayIndex,
+                                              );
+                                              sendNotification(
+                                                index,
+                                                selectedDayIndex,
+                                                targetClicks,
+                                                picked,
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      ),
                                   ],
                                 ),
                               );

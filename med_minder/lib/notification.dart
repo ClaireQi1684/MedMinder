@@ -4,12 +4,10 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 
 class NotificationService {
-  //thank you to Pranav Dave, our saviour
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> init() async {
-    // Initialize timezone
     tzdata.initializeTimeZones();
     final TimezoneInfo timeZoneInfo = await FlutterTimezone.getLocalTimezone();
     tz.setLocalLocation(tz.getLocation(timeZoneInfo.identifier));
@@ -28,20 +26,18 @@ class NotificationService {
       iOS: iOSInit,
     );
 
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _notifications
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
+    await _notifications.initialize(settings: initSettings);
 
-    final IOSFlutterLocalNotificationsPlugin? iOSImplementation = _notifications
+    final android = _notifications
         .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
+          AndroidFlutterLocalNotificationsPlugin
         >();
 
-    if ((androidImplementation != null) || (iOSImplementation != null)) {
-      await _notifications.initialize(settings: initSettings);
-    }
+    // Android 13+: ask the user to allow notifications.
+    await android?.requestNotificationsPermission();
+
+    // Request exact-alarm access where supported.
+    await android?.requestExactAlarmsPermission();
   }
 
   static Future<void> scheduleNotification({
@@ -55,7 +51,7 @@ class NotificationService {
       title: title,
       body: body,
       scheduledDate: tz.TZDateTime.from(scheduledTime, tz.local),
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           'main_channel',
           'Main Channel',
@@ -65,6 +61,11 @@ class NotificationService {
         ),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
     );
+  }
+
+  static Future<void> cancel(int id) async {
+    await _notifications.cancel(id: id);
   }
 }

@@ -32,8 +32,8 @@ dependencies:
     sdk: flutter
   timezone: any
   flutter_local_notifications: any
-  flutter_timezone: ^5.1.1
-  intl: ^0.20.3
+  flutter_timezone: any
+  intl: any
   shared_preferences: any
 
 dev_dependencies:
