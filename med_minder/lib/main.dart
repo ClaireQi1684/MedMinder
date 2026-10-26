@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
 
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -504,19 +505,34 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
           child: Column(
             children: [
               const Center(
-                child: Text(
-                  "WELCOMED TO MEDMINDERRRRUYIUWHUHS",
-                  style: TextStyle(fontSize: 70),
-                ),
+                child: Image(image: AssetImage('assets/MedMinder-title.png')),
               ),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    currentScreenIndex = 2;
-                  });
-                },
-                iconSize: 300,
-                icon: const Icon(Icons.calendar_today),
+              const SizedBox(height: 30),
+              Center(
+                child: Material(
+                  // 1. Forces the material canvas to be completely transparent
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        currentScreenIndex = 2;
+                      });
+                    },
+                    // 2. Clips the ripple effect to the exact pill shape of the image
+                    borderRadius: BorderRadius.circular(999),
+                    splashColor: const Color.fromARGB(
+                      255,
+                      244,
+                      243,
+                      243,
+                    ), // Subtle tap indicator
+                    child: Ink.image(
+                      image: const AssetImage('assets/MedMinder-start.png'),
+                      height: 400,
+                      fit: BoxFit.contain, // Ensures the transparent edges of your asset aren't stretched
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -809,6 +825,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                             currentPillName,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
+                                              fontSize: 17,
                                             ),
                                           ),
                                         ),
@@ -868,7 +885,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                         child: Text(
                                                           "REMOVE",
                                                           style: TextStyle(
-                                                            fontSize: 12,
+                                                            fontSize: 17,
                                                             color: Colors.white,
                                                           ),
                                                         ),
@@ -966,7 +983,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                           "Target: $targetClicks",
                                                           style:
                                                               const TextStyle(
-                                                                fontSize: 12,
+                                                                fontSize: 20,
                                                                 color: Colors
                                                                     .white,
                                                               ),
@@ -1057,7 +1074,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                         child: Text(
                                                           "Edit Name",
                                                           style: TextStyle(
-                                                            fontSize: 12,
+                                                            fontSize: 20,
                                                             color: Colors.white,
                                                           ),
                                                         ),
@@ -1091,7 +1108,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                     child: Text(
                                                       "TAKE\n($currentClicks/$targetClicks)",
                                                       style: const TextStyle(
-                                                        fontSize: 16,
+                                                        fontSize: 20,
                                                       ),
                                                       textAlign:
                                                           TextAlign.center,
@@ -1150,7 +1167,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                       "minute": picked.minute,
                                                     };
                                               });
-                                              saveData();
 
                                               // 1. Cancel old alarms
                                               deleteNotification(
@@ -1165,6 +1181,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
                                                 targetClicks,
                                                 picked,
                                               );
+                                              saveData();
                                             }
                                           },
                                         ),
