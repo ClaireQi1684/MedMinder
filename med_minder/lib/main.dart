@@ -384,19 +384,15 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
 
     final targetWeekday = dayID + now.weekday;
     if (targetWeekday < DateTime.monday || targetWeekday > DateTime.sunday) {
-      debugPrint('ERROR: Invalid dayID: $dayID');
       return;
     }
 
-    // 1. Calculate how many doses are actually left to take
+    // Calculate how many doses are actually left to take
     final int currentClicks = pillCheck[dayID][pillID];
     final int remainingDoses = totalTargetClicks - currentClicks;
 
-    // If all doses for this pill are already taken, don't schedule any new notifications!
+    // If all doses for this pill are already taken, no new notifications scheduled
     if (remainingDoses <= 0) {
-      debugPrint(
-        'All doses already taken for pill $pillID. Skipping notification schedule.',
-      );
       return;
     }
 
@@ -414,10 +410,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
         !scheduledTime.isAfter(now)) {
       scheduledTime = scheduledTime.add(const Duration(days: 1));
     }
-    debugPrint("targetWeekday: $targetWeekday");
-    debugPrint("dayID: $dayID");
-    int dayOfWeek = now.weekday;
-    debugPrint("current day of week: $dayOfWeek");
 
     // Ensure the day has a list for this pill.
     while (notificationIDs[dayID].length <= pillID) {
@@ -429,7 +421,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
 
     final medName = pillNames[dayID][pillID];
 
-    // 2. Define your end window (10 PM / 22:00 on that same day)
+    // Define end window (10 PM)
     final endTime = tz.TZDateTime(
       tz.local,
       scheduledTime.year,
@@ -439,7 +431,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       0,
     );
 
-    // 3. Calculate interval using ONLY the remaining doses
+    // Calculate interval using ONLY the remaining doses
     Duration interval;
     if (scheduledTime.isBefore(endTime)) {
       final totalMinutes = endTime.difference(scheduledTime).inMinutes;
@@ -450,7 +442,7 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
       interval = const Duration(hours: 4);
     }
 
-    // 4. Loop and schedule only the remaining doses
+    // Loop and schedule only the remaining doses
     for (int i = 0; i < remainingDoses; i++) {
       // Offset the hash ID by currentClicks so it doesn't conflict with past taken doses
       final uniqueID = "$dayID-$pillID-${currentClicks + i}".hashCode;
@@ -465,22 +457,6 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
         scheduledTime: doseTime,
       );
     }
-
-    // 5. Debug Console Log
-    debugPrint(
-      '--- RESCHEDULED NOTIFICATIONS FOR $medName ($remainingDoses remaining) ---',
-    );
-    for (int i = 0; i < remainingDoses; i++) {
-      int offsetMinutes = (interval.inMinutes * i);
-      DateTime doseTime = scheduledTime.add(Duration(minutes: offsetMinutes));
-
-      debugPrint(
-        'Remaining Dose ${i + 1}: ID ${notificationIDs[dayID][pillID][i]} scheduled at $doseTime',
-      );
-    }
-    debugPrint(
-      '-----------------------------------------------------------------------',
-    );
   }
 
   void deleteNotification(int pillID, int dayID) async {
@@ -504,19 +480,33 @@ class MedMinderState extends State<MedMinder> with WidgetsBindingObserver {
           child: Column(
             children: [
               const Center(
-                child: Text(
-                  "WELCOMED TO MEDMINDERRRRUYIUWHUHS",
-                  style: TextStyle(fontSize: 70),
-                ),
+                child: Image(image: AssetImage('assets/MedMinder-title.png')),
               ),
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    currentScreenIndex = 2;
-                  });
-                },
-                iconSize: 300,
-                icon: const Icon(Icons.calendar_today),
+              const SizedBox(height: 30),
+              Center(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        currentScreenIndex = 2;
+                      });
+                    },
+
+                    borderRadius: BorderRadius.circular(999),
+                    splashColor: const Color.fromARGB(
+                      255,
+                      244,
+                      243,
+                      243,
+                    ), // Subtle tap indicator
+                    child: Ink.image(
+                      image: const AssetImage('assets/MedMinder-start.png'),
+                      height: 400,
+                      fit: BoxFit.contain, // Ensures the transparent edges of your asset aren't stretched
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
